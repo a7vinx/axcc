@@ -1,0 +1,11 @@
+# macOS Desktop Services Store
+.DS_Store
+
+# Temporary files
+*~
+
+# Vim swap files
+.*.sw?
+
+# Auto-generated tag files
+tags
