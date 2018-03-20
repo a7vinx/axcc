@@ -80,10 +80,14 @@ public:
     Token(const TokenType& tag, const std::string& token_str,
           const std::shared_ptr<const SourceLocation>& locp)
         : tag_{tag}, token_str_{token_str}, locp_{locp} {}
+    Token(const TokenType& tag,
+          const std::shared_ptr<const SourceLocation>& locp)
+        : tag_{tag}, locp_{locp} {}
     // No loction pointer version for constructing the token whose location
     // pointer is meaningless.
     Token(const TokenType& tag, const std::string& token_str)
         : tag_{tag}, token_str_{token_str} {}
+    Token(const TokenType& tag) : tag_{tag} {}
     Token(const Token&) = default;
     Token(Token&&) = default;
     Token& operator=(const Token&) = delete;
@@ -100,7 +104,7 @@ public:
 private:
     const TokenType tag_;
     // Integer and float constant is stored as string for now.
-    const std::string token_str_;
+    const std::string token_str_{};
     std::shared_ptr<const SourceLocation> locp_{};
 };
 
