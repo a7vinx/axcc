@@ -1,0 +1,63 @@
+#ifndef _AXCC_SCANNER_HH_
+#define _AXCC_SCANNER_HH_
+
+#include <string>
+#include <memory>
+#include <cstdlib>
+
+#include "token.hh"
+
+namespace axcc {
+
+class Scanner {
+public:
+    Scanner(const std::string& fname, const std::string& fcontent)
+        : fname_{fname},
+          fcontent_{fcontent},
+          cur_linep_{fcontent_.cbegin()},
+          cur_charp_{fcontent_.cbegin()},
+          cur_line_len_{FindNext('\n')},
+          tsp_{std::make_unique<TokenSequence>()} {
+        if (cur_line_len_ == 0)
+            cur_line_len_ = fcontent.size();
+    }
+    Scanner(const Scanner&) = delete;
+    Scanner(Scanner&&) = delete;
+    Scanner& operator=(const Scanner&) = delete;
+    Scanner& operator=(Scanner&&) = delete;
+    virtual ~Scanner() = default;
+
+    std::unique_ptr<TokenSequence> Scan();
+
+private:
+    friend class ScannerTest;
+    // Return 0 if it reaches the end.
+    char Begin() const;
+    char Next();
+    char LookAhead() const { return LookAheadN(1); }
+    char LookAheadN(int n) const;
+    bool Try(char c);
+    // Return the distance to the next char represented by parameter c and
+    // return 0 if not find.
+    unsigned int FindNext(char c) const;
+    void MakeTokenInTS(const TokenType& tag, const std::string& token_str);
+    void MakeTokenInTS(const TokenType& tag);
+
+    // Use reference for file name and content string because SourceLocation
+    // object which we have to create when scanning has pointer and iterator
+    // members related to these string.
+    const std::string& fname_;
+    const std::string& fcontent_;
+    unsigned int cur_row_{1};
+    unsigned int cur_column_{1};
+    std::string::const_iterator cur_linep_;
+    std::string::const_iterator cur_charp_;
+    std::size_t cur_line_len_;
+    std::unique_ptr<TokenSequence> tsp_;
+};
+
+// Maybe we can return a smart pointer?
+std::string ReadFile(const std::string& fname);
+
+}
+#endif
