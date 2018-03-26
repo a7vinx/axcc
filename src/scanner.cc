@@ -16,6 +16,12 @@ char Scanner::Begin() const {
     return *cur_charp_;
 }
 
+char Scanner::CurChar() const {
+    if (cur_charp_ != fcontent_.cend())
+        return *cur_charp_;
+    return 0;
+}
+
 char Scanner::Next() {
     if (*cur_charp_ == '\n') {
         std::advance(cur_charp_, 1);
@@ -34,6 +40,12 @@ char Scanner::Next() {
     return *cur_charp_;
 }
 
+char Scanner::NextN(int n) {
+    for (int i = 0; i < n - 1; i++)
+        Next();
+    return Next();
+}
+
 char Scanner::LookAheadN(int n) const {
     if (std::distance(cur_charp_, fcontent_.cend()) <= n)
         return 0;
@@ -46,6 +58,16 @@ bool Scanner::Try(char c) {
         return true;
     }
     return false;
+}
+
+bool Scanner::Try(const std::string& chars) {
+    int n = chars.size();
+    for (int i = 1; i <= n; i++) {
+        if (LookAheadN(i) != chars[i - 1])
+            return false;
+    }
+    NextN(n);
+    return true;
 }
 
 unsigned int Scanner::FindNext(char c) const {

@@ -33,10 +33,14 @@ private:
     friend class ScannerTest;
     // Return 0 if it reaches the end.
     char Begin() const;
+    char CurChar() const;
     char Next();
+    char NextN(int n);
     char LookAhead() const { return LookAheadN(1); }
     char LookAheadN(int n) const;
+    bool NextIs(char c) const { return LookAhead() == c; }
     bool Try(char c);
+    bool Try(const std::string& chars);
     // Return the distance to the next char represented by parameter c and
     // return 0 if not find.
     unsigned int FindNext(char c) const;
