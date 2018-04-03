@@ -10,9 +10,14 @@ namespace axcc {
 std::unique_ptr<TokenSequence> Scanner::Scan() {
 }
 
-char Scanner::Begin() const {
+char Scanner::Begin() {
     if (cur_charp_ == fcontent_.cend())
         return 0;
+    // Deal with backslash-newline
+    if (*cur_charp_ == '\\' && *std::next(cur_charp_, 1) == '\n') {
+        std::advance(cur_charp_, 1);
+        return Next();
+    }
     return *cur_charp_;
 }
 
@@ -37,6 +42,12 @@ char Scanner::Next() {
     }
     if (cur_charp_ == fcontent_.cend())
         return 0;
+    // Deal with backslash-newline
+    if (*cur_charp_ == '\\' && *std::next(cur_charp_, 1) == '\n') {
+        std::advance(cur_charp_, 1);
+        ++cur_column_;
+        return Next();
+    }
     return *cur_charp_;
 }
 
@@ -49,7 +60,19 @@ char Scanner::NextN(int n) {
 char Scanner::LookAheadN(int n) const {
     if (std::distance(cur_charp_, fcontent_.cend()) <= n)
         return 0;
-    return *std::next(cur_charp_, n);
+    auto iter = cur_charp_;
+    auto end_iter = std::next(iter, n);
+    do {
+        std::advance(iter, 1);
+        // Deal with backslash-newline
+        if (*iter == '\\' && *std::next(iter, 1) == '\n') {
+            if (std::distance(end_iter, fcontent_.cend()) <= 2)
+                return 0;
+            std::advance(end_iter, 2);
+            std::advance(iter, 1);
+        }
+    } while (iter != end_iter);
+    return *end_iter;
 }
 
 bool Scanner::Try(char c) {
@@ -73,13 +96,13 @@ bool Scanner::Try(const std::string& chars) {
 unsigned int Scanner::FindNext(char c) const {
     unsigned int distance = 0;
     auto cur_charp = cur_charp_;
-    while (++distance) {
-        std::advance(cur_charp, 1);
+    do {
         if (cur_charp == fcontent_.cend())
            return 0;
-        if (*cur_charp == c)
+        if (*cur_charp == c && cur_charp != cur_charp_)
            break;
-    }
+        std::advance(cur_charp, 1);
+    } while (++distance);
     return distance;
 }
 

@@ -32,7 +32,7 @@ public:
 private:
     friend class ScannerTest;
     // Return 0 if it reaches the end.
-    char Begin() const;
+    char Begin();
     char CurChar() const;
     char Next();
     char NextN(int n);
