@@ -47,6 +47,12 @@ private:
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str);
     void MakeTokenInTS(const TokenType& tag);
 
+    void SkipComment();
+    void ScanNumConstant();
+    void ScanCharConstant();
+    void ScanStrLiteral();
+    void ScanIdent();
+
     // Use reference for file name and content string because SourceLocation
     // object which we have to create when scanning has pointer and iterator
     // members related to these string.
@@ -62,6 +68,7 @@ private:
 
 // Maybe we can return a smart pointer?
 std::string ReadFile(const std::string& fname);
+// void SubstTrigraph(const std::string& fcontent);
 
 }
 #endif
