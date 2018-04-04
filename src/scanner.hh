@@ -44,8 +44,12 @@ private:
     // Return the distance to the next char represented by parameter c and
     // return 0 if not find.
     unsigned int FindNext(char c) const;
+    void MakeTokenInTS(const TokenType& tag, const std::string& token_str,
+                       const SourceLocation& loc);
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str);
     void MakeTokenInTS(const TokenType& tag);
+    SourceLocation SaveCurLoc() {
+        return {&fname_, cur_row_, cur_column_, cur_linep_, cur_line_len_}; }
 
     void SkipComment();
     void ScanNumConstant();

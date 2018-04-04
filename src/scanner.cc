@@ -231,6 +231,12 @@ unsigned int Scanner::FindNext(char c) const {
     return distance;
 }
 
+void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str,
+                            const SourceLocation& loc) {
+    tsp_->EmplaceBack(tag, token_str,
+                      std::make_shared<const SourceLocation>(loc));
+}
+
 void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str) {
     tsp_->EmplaceBack(tag, token_str,
                       std::make_shared<const SourceLocation>(
@@ -247,6 +253,23 @@ void Scanner::MakeTokenInTS(const TokenType& tag) {
 }
 
 void Scanner::SkipComment() {
+    assert(CurChar() == '/' && (NextIs('/') || NextIs('*')));
+    SourceLocation loc{SaveCurLoc()};
+    if (Try('/')) {
+        // The '\n' should not be "eaten" because we need to generate the
+        // NEWLINE token after the comment.
+        while (!NextIs(0) && !NextIs('\n')) { Next(); }
+    } else if (Try('*')) {
+        // Next() will be called immediately after this function so we should
+        // use LookAhead() instead of Next() to check if the end of the file
+        // has been reached.
+        while (!NextIs(0)) {
+            if (Try("*/"))
+                return;
+            Next();
+        }
+        Error("unterminated /* comment", loc);
+    }
 }
 
 void Scanner::ScanNumConstant() {
