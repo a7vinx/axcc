@@ -272,7 +272,44 @@ void Scanner::SkipComment() {
     }
 }
 
+// Do as little work as possible to distinguish between I_CONSTANT and
+// F_CONSTANT.
 void Scanner::ScanNumConstant() {
+    char curc = CurChar();
+    SourceLocation loc{SaveCurLoc()};
+    TokenType tag = TokenType::I_CONSTANT;
+    auto begin_charp = cur_charp_;
+    bool has_invalid = false;
+    bool has_hex_prefix = false;
+
+    if (curc == '.')
+        tag = TokenType::F_CONSTANT;
+    char peekc = LookAheadN(2);
+    if ((isxdigit(peekc) || peekc == '.') &&
+        (curc = '0' && (Try('x') || Try('X'))))
+        has_hex_prefix = true;
+    while ((curc = LookAhead()) != 0) {
+        if (isdigit(curc) || isalpha(curc) || curc == '.') {
+            if (curc == 'e' || curc == 'E' || curc == 'p' || curc == 'P') {
+                if (LookAheadN(2) == '+' || LookAheadN(2) == '-')
+                    Next();
+                if (has_hex_prefix && !has_invalid &&
+                    (curc == 'p' || curc == 'P'))
+                    tag = TokenType::F_CONSTANT;
+                if (!has_hex_prefix && !has_invalid &&
+                    (curc == 'e' || curc == 'E'))
+                    tag = TokenType::F_CONSTANT;
+            }
+            if ((curc == '.') && !has_invalid)
+                tag = TokenType::F_CONSTANT;
+            if (!isdigit(curc) && !(has_hex_prefix && isxdigit(curc)))
+                has_invalid = true;
+            Next();
+            continue;
+        }
+        break;
+    }
+    MakeTokenInTS(tag, {begin_charp, std::next(cur_charp_, 1)}, loc);
 }
 
 void Scanner::ScanCharConstant() {
