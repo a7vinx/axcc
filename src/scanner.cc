@@ -313,6 +313,22 @@ void Scanner::ScanNumConstant() {
 }
 
 void Scanner::ScanCharConstant() {
+    char curc = CurChar();
+    SourceLocation loc{SaveCurLoc()};
+    auto begin_charp = cur_charp_;
+
+    assert(((curc == 'u' || curc == 'U' || curc == 'L') && NextIs('\'')) ||
+           curc == '\'');
+    if (curc != '\'') Next();
+    while ((curc = Next()) != '\'') {
+        if (curc == '\\') Next();
+        if (curc == 0) {
+            Error("unterminated character constant", loc);
+            return;
+        }
+    }
+    MakeTokenInTS(TokenType::C_CONSTANT,
+                  {begin_charp, std::next(cur_charp_, 1)}, loc);
 }
 
 void Scanner::ScanStrLiteral() {
