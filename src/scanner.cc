@@ -332,6 +332,24 @@ void Scanner::ScanCharConstant() {
 }
 
 void Scanner::ScanStrLiteral() {
+    char curc = CurChar();
+    SourceLocation loc{SaveCurLoc()};
+    auto begin_charp = cur_charp_;
+
+    assert((curc == 'u' && NextIs('8') && LookAheadN(2) == '\"') ||
+           ((curc == 'u' || curc == 'U' || curc == 'L') && NextIs('\"')) ||
+           curc == '\"');
+    if (curc != '\"') Next();
+    if (CurChar() != '\"') Next();
+    while ((curc = Next()) != '\"') {
+        if (curc == '\\') Next();
+        if (curc == 0) {
+            Error("unterminated string literal", loc);
+            return;
+        }
+    }
+    MakeTokenInTS(TokenType::STRING,
+                  {begin_charp, std::next(cur_charp_, 1)}, loc);
 }
 
 void Scanner::ScanIdent() {
