@@ -41,23 +41,22 @@ enum class TokenType {
     XOR_ASGN, SHL_ASGN, SHR_ASGN,
     MOD_ASGN, ARROW, ELLIP, DSHARP,
     // Type specifiers
-    VOID, CHAR, SHORT,
-    INT, LONG, LLONG,
-    FLOAT, DOUBLE, BOOL,
+    VOID, CHAR, SHORT, INT,
+    LONG, FLOAT, DOUBLE, BOOL,
     UNSIGNED, SIGNED,
     STRUCT, UNION, ENUM,
     // Type qualifiers
     // _Atomic can also be type specifier
-    CONST, VILATILE, RESTRICT,
+    CONST, VOLATILE, RESTRICT,
     ATOMIC, COMPLEX, IMAGINARY,
     // Storage-class specifiers
-    STATIC, EXTERN, AUTO, REIGSTER, THREAD_LOCAL,
+    STATIC, EXTERN, AUTO, REGISTER, THREAD_LOCAL,
     // Function specifiers
     INLINE, NO_RETURN,
     // Other keywords
     IF, ELSE, FOR, WHILE, DO, BREAK,
-    SWITCH, CASE, GOTO, CONTINUE,
-    TYPEDEF, RETURN, FUNC_NAME,
+    SWITCH, CASE, DEFAULT, GOTO,
+    CONTINUE, TYPEDEF, RETURN,
     STATIC_ASSERT, GENERIC,
     SIZEOF, ALIGNAS, ALIGNOF,
     // Preprocessor directives
