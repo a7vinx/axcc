@@ -287,21 +287,21 @@ void Scanner::ScanNumConstant() {
     if ((isxdigit(peekc) || peekc == '.') &&
         (curc = '0' && (Try('x') || Try('X'))))
         has_hex_prefix = true;
-    while ((curc = LookAhead()) != 0) {
-        if (isdigit(curc) || isalpha(curc) || curc == '.') {
-            if (curc == 'e' || curc == 'E' || curc == 'p' || curc == 'P') {
+    while ((peekc = LookAhead()) != 0) {
+        if (isdigit(peekc) || isalpha(peekc) || peekc == '.' || peekc == '_') {
+            if (peekc == 'e' || peekc == 'E' || peekc == 'p' || peekc == 'P') {
                 if (LookAheadN(2) == '+' || LookAheadN(2) == '-')
                     Next();
                 if (has_hex_prefix && !has_invalid &&
-                    (curc == 'p' || curc == 'P'))
+                    (peekc == 'p' || peekc == 'P'))
                     tag = TokenType::F_CONSTANT;
                 if (!has_hex_prefix && !has_invalid &&
-                    (curc == 'e' || curc == 'E'))
+                    (peekc == 'e' || peekc == 'E'))
                     tag = TokenType::F_CONSTANT;
             }
-            if ((curc == '.') && !has_invalid)
+            if ((peekc == '.') && !has_invalid)
                 tag = TokenType::F_CONSTANT;
-            if (!isdigit(curc) && !(has_hex_prefix && isxdigit(curc)))
+            if (!isdigit(peekc) && !(has_hex_prefix && isxdigit(peekc)))
                 has_invalid = true;
             Next();
             continue;
