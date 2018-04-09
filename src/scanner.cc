@@ -115,9 +115,8 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
                     LookAheadN(2) == '\"') { ScanStrLiteral(); break; }
             case 'U':
             case 'L':
-                if (NextIs('\'')) ScanCharConstant();
-                else if (NextIs('\"')) ScanStrLiteral();
-                break;
+                if (NextIs('\'')) { ScanCharConstant(); break; }
+                else if (NextIs('\"')) { ScanStrLiteral(); break; }
             default:
                 if (isspace(curc))
                     break;
