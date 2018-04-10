@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <cstdlib>
+#include <unordered_map>
 
 #include "token.hh"
 
@@ -46,6 +47,7 @@ private:
     unsigned int FindNext(char c) const;
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str,
                        const SourceLocation& loc);
+    void MakeTokenInTS(const TokenType& tag, const SourceLocation& loc);
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str);
     void MakeTokenInTS(const TokenType& tag);
     SourceLocation SaveCurLoc() {
@@ -68,6 +70,7 @@ private:
     std::string::const_iterator cur_charp_;
     std::size_t cur_line_len_;
     std::unique_ptr<TokenSequence> tsp_;
+    static const std::unordered_map<std::string, TokenType> kKeyToType_;
 };
 
 // Maybe we can return a smart pointer?

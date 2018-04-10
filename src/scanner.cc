@@ -9,6 +9,53 @@
 
 namespace axcc {
 
+const std::unordered_map<std::string, TokenType> Scanner::kKeyToType_{
+    {"void", TokenType::VOID},
+    {"char", TokenType::CHAR},
+    {"short", TokenType::SHORT},
+    {"int", TokenType::INT},
+    {"long", TokenType::LONG},
+    {"float", TokenType::FLOAT},
+    {"double", TokenType::DOUBLE},
+    {"_Bool", TokenType::BOOL},
+    {"unsigned", TokenType::UNSIGNED},
+    {"signed", TokenType::SIGNED},
+    {"struct", TokenType::STRUCT},
+    {"union", TokenType::UNION},
+    {"enum", TokenType::ENUM},
+    {"const", TokenType::CONST},
+    {"volatile", TokenType::VOLATILE},
+    {"restrict", TokenType::RESTRICT},
+    {"_Atomic", TokenType::ATOMIC},
+    {"_Complex", TokenType::COMPLEX},
+    {"_Imaginary", TokenType::IMAGINARY},
+    {"static", TokenType::STATIC},
+    {"extern", TokenType::EXTERN},
+    {"auto", TokenType::AUTO},
+    {"register", TokenType::REGISTER},
+    {"_Thread_local", TokenType::THREAD_LOCAL},
+    {"inline", TokenType::INLINE},
+    {"_Noreturn", TokenType::NO_RETURN},
+    {"if", TokenType::IF},
+    {"else", TokenType::ELSE},
+    {"for", TokenType::FOR},
+    {"while", TokenType::WHILE},
+    {"do", TokenType::DO},
+    {"break", TokenType::BREAK},
+    {"switch", TokenType::SWITCH},
+    {"case", TokenType::CASE},
+    {"default", TokenType::DEFAULT},
+    {"goto", TokenType::GOTO},
+    {"continue", TokenType::CONTINUE},
+    {"typedef", TokenType::TYPEDEF},
+    {"return", TokenType::RETURN},
+    {"_Static_assert", TokenType::STATIC_ASSERT},
+    {"_Generic", TokenType::GENERIC},
+    {"sizeof", TokenType::SIZEOF},
+    {"_Alignas", TokenType::ALIGNAS},
+    {"_Alignof", TokenType::ALIGNOF},
+};
+
 std::unique_ptr<TokenSequence> Scanner::Scan() {
     char curc = Begin();
     while (curc != 0) {
@@ -123,8 +170,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
                 else if (curc >= '0' && curc <= '9')
                     ScanNumConstant();
                 else if ((curc >= 'a' && curc <= 'z') ||
-                         (curc >= 'A' && curc <= 'Z') ||
-                         curc == '_' || curc == '$')
+                         (curc >= 'A' && curc <= 'Z') || curc == '_')
                     ScanIdent();
                 else
                     MakeTokenInTS(TokenType::INVALID);
@@ -234,6 +280,10 @@ void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str,
                             const SourceLocation& loc) {
     tsp_->EmplaceBack(tag, token_str,
                       std::make_shared<const SourceLocation>(loc));
+}
+
+void Scanner::MakeTokenInTS(const TokenType& tag, const SourceLocation& loc) {
+    tsp_->EmplaceBack(tag, std::make_shared<const SourceLocation>(loc));
 }
 
 void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str) {
@@ -352,6 +402,24 @@ void Scanner::ScanStrLiteral() {
 }
 
 void Scanner::ScanIdent() {
+    auto begin_charp = cur_charp_;
+    SourceLocation loc{SaveCurLoc()};
+    char peekc;
+
+    while ((peekc = LookAhead()) != 0) {
+        if (Try("\\u") || Try("\\U"))
+            continue;
+        if (!isalpha(peekc) && !isdigit(peekc) && peekc != '_')
+            break;
+        Next();
+    }
+    std::string token_str{begin_charp, std::next(cur_charp_, 1)};
+    auto iter = kKeyToType_.find(token_str);
+    if (iter != kKeyToType_.cend()) {
+        MakeTokenInTS(iter->second, loc);
+        return;
+    }
+    MakeTokenInTS(TokenType::IDENTIFIER, token_str, loc);
 }
 
 std::string ReadFile(const std::string& fname) {
