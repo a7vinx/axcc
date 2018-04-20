@@ -1,4 +1,5 @@
 #include <ctime>
+#include <stack>
 
 #include "preprocessor.hh"
 #include "scanner.hh"
@@ -34,6 +35,32 @@ private:
     const std::string ident_;
     const std::list<Token> repl_;
     const std::vector<std::string> params_{};
+};
+
+class Preprocessor::PPConditions {
+public:
+    PPConditions() = default;
+    PPConditions(const PPConditions&) = default;
+    PPConditions(PPConditions&&) = default;
+    PPConditions& operator=(const PPConditions&) = default;
+    PPConditions& operator=(PPConditions&&) = default;
+    virtual ~PPConditions() = default;
+
+    void CondBegin(bool state) { conditions_.push({state, true}); }
+    void CondEnd() { conditions_.pop(); }
+    bool HasNextElse() { return conditions_.top().has_next_else; }
+    void EncounterElse() { conditions_.top().has_next_else = false; }
+    bool CurState() { return conditions_.top().state; }
+    void SetCurState(bool state) { conditions_.top().state = state; }
+
+private:
+    struct PPCondition {
+        // Indicate whether current conditional preprocessing block need to be
+        // processed.
+        bool state;
+        bool has_next_else;
+    };
+    std::stack<PPCondition> conditions_;
 };
 
 // These two functions has to be defined here due to the incomplete type of

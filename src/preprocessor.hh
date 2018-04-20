@@ -6,7 +6,6 @@
 #include <list>
 #include <map>
 #include <memory>
-#include <stack>
 
 #include "token.hh"
 
@@ -27,10 +26,7 @@ public:
 
 private:
     class Macro;
-    struct PPCondition {
-        bool cond_bool;
-        bool has_next_else;
-    };
+    class PPConditions;
 
     // Return false if the identifier of the macro waiting to be added has
     // already been added before, while the adding action will still be
@@ -48,7 +44,7 @@ private:
     // Due to the incomplete type of Macro class, this map can neither be
     // specialized with Macro class nor be initialized using member initializer.
     std::map<std::string, std::unique_ptr<Macro>> macros_;
-    std::stack<PPCondition> conditions_{};
+    std::unique_ptr<PPConditions> conditions_{};
 };
 
 }
