@@ -137,6 +137,7 @@ public:
     // type here?)
     Token* Begin();
     Token* Next();
+    Token* CurToken();
     Token* LookAhead() const { return LookAheadN(1); }
     Token* LookAheadN(int n) const;
     // Wrapper functions for adjusting the token list.

@@ -43,6 +43,12 @@ Token* TokenSequence::Next() {
     return &(**ret);
 }
 
+Token* TokenSequence::CurToken() {
+    if (std::distance(token_list_.cbegin(), {token_list_iter_}) < 1)
+        return nullptr;
+    return &(**std::prev(token_list_iter_, 1));
+}
+
 Token* TokenSequence::LookAheadN(int n) const {
     if (std::distance({token_list_iter_}, token_list_.cend()) < n)
         return nullptr;
