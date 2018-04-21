@@ -46,12 +46,14 @@ public:
     PPConditions& operator=(PPConditions&&) = default;
     virtual ~PPConditions() = default;
 
-    void CondBegin(bool state) { conditions_.push({state, true}); }
+    void CondBegin(bool state, const SourceLocation& loc) {
+        conditions_.push({state, true, loc}); }
     void CondEnd() { conditions_.pop(); }
-    bool HasNextElse() { return conditions_.top().has_next_else; }
+    bool HasNextElse() const { return conditions_.top().has_next_else; }
     void EncounterElse() { conditions_.top().has_next_else = false; }
-    bool CurState() { return conditions_.top().state; }
+    bool CurState() const { return conditions_.top().state; }
     void SetCurState(bool state) { conditions_.top().state = state; }
+    SourceLocation BeginLoc() const { return conditions_.top().begin_loc; }
 
 private:
     struct PPCondition {
@@ -59,8 +61,9 @@ private:
         // processed.
         bool state;
         bool has_next_else;
+        const SourceLocation begin_loc;
     };
-    std::stack<PPCondition> conditions_;
+    std::stack<PPCondition> conditions_{};
 };
 
 // These two functions has to be defined here due to the incomplete type of
