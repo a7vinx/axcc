@@ -35,6 +35,7 @@ private:
     // Return 0 if it reaches the end.
     char Begin();
     char CurChar() const;
+    // Next() can not be called if it has already reached the end.
     char Next();
     char NextN(int n);
     char LookAhead() const { return LookAheadN(1); }

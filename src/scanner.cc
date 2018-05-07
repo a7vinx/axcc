@@ -372,12 +372,15 @@ void Scanner::ScanCharConstant() {
     assert(((curc == 'u' || curc == 'U' || curc == 'L') && NextIs('\'')) ||
            curc == '\'');
     if (curc != '\'') Next();
-    while ((curc = Next()) != '\'') {
-        if (curc == '\\') Next();
-        if (curc == 0) {
-            Error("unterminated character constant", loc);
+    while (!Try('\'')) {
+        if (NextIs(0)) {
+            MakeTokenInTS(TokenType::INVALID, loc);
+            Error("missing terminating ' character", loc);
             return;
         }
+        if (LookAheadN(2) != 0)
+            Try('\\');
+        Next();
     }
     MakeTokenInTS(TokenType::C_CONSTANT,
                   {begin_charp, std::next(cur_charp_, 1)}, loc);
@@ -393,12 +396,15 @@ void Scanner::ScanStrLiteral() {
            curc == '\"');
     if (curc != '\"') Next();
     if (CurChar() != '\"') Next();
-    while ((curc = Next()) != '\"') {
-        if (curc == '\\') Next();
-        if (curc == 0) {
-            Error("unterminated string literal", loc);
+    while (!Try('\"')) {
+        if (NextIs(0)) {
+            MakeTokenInTS(TokenType::INVALID, loc);
+            Error("missing terminating '\"' character", loc);
             return;
         }
+        if (LookAheadN(2) != 0)
+            Try('\\');
+        Next();
     }
     MakeTokenInTS(TokenType::STRING,
                   {begin_charp, std::next(cur_charp_, 1)}, loc);
