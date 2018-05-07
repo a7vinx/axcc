@@ -185,7 +185,8 @@ char Scanner::Begin() {
     if (cur_charp_ == fcontent_.cend())
         return 0;
     // Deal with backslash-newline
-    if (*cur_charp_ == '\\' && *std::next(cur_charp_, 1) == '\n') {
+    if (*cur_charp_ == '\\' && std::next(cur_charp_, 1) != fcontent_.cend() &&
+        *std::next(cur_charp_, 1) == '\n') {
         std::advance(cur_charp_, 1);
         return Next();
     }
@@ -216,7 +217,8 @@ char Scanner::Next() {
     if (cur_charp_ == fcontent_.cend())
         return 0;
     // Deal with backslash-newline
-    if (*cur_charp_ == '\\' && *std::next(cur_charp_, 1) == '\n') {
+    if (*cur_charp_ == '\\' && std::next(cur_charp_, 1) != fcontent_.cend() &&
+        *std::next(cur_charp_, 1) == '\n') {
         std::advance(cur_charp_, 1);
         ++cur_column_;
         return Next();
