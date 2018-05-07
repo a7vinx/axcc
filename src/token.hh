@@ -90,6 +90,7 @@ public:
 
     TokenType Tag() const { return tag_; }
     std::string TokenStr() const { return token_str_; }
+    const SourceLocation& Loc() const { return *locp_; }
     std::shared_ptr<const SourceLocation> LocPtr() const { return locp_; }
     void SetLocPtr(const std::shared_ptr<const SourceLocation>& locp) {
         locp_ = locp;
