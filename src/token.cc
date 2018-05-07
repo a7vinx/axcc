@@ -24,7 +24,8 @@ std::string LocStr(const SourceLocation& loc) {
     return locstr;
 }
 
-TokenSequence::TokenSequence(const TokenSequence& other) {
+TokenSequence::TokenSequence(const TokenSequence& other)
+    : end_token_{other.end_token_} {
     for (auto const &tp : other.token_list_) {
         token_list_.push_back(std::make_unique<Token>(*tp));
     }
@@ -37,7 +38,7 @@ Token* TokenSequence::Begin() {
 
 Token* TokenSequence::Next() {
     if (token_list_iter_ == token_list_.end())
-        return nullptr;
+        return &end_token_;
     auto ret = token_list_iter_;
     std::advance(token_list_iter_, 1);
     return &(**ret);
@@ -45,13 +46,13 @@ Token* TokenSequence::Next() {
 
 Token* TokenSequence::CurToken() {
     if (std::distance(token_list_.cbegin(), {token_list_iter_}) < 1)
-        return nullptr;
+        return &end_token_;
     return &(**std::prev(token_list_iter_, 1));
 }
 
-Token* TokenSequence::LookAheadN(int n) const {
+Token* TokenSequence::LookAheadN(int n) {
     if (std::distance({token_list_iter_}, token_list_.cend()) < n)
-        return nullptr;
+        return &end_token_;
     return &(**std::next(token_list_iter_, n - 1));
 }
 

@@ -177,6 +177,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
         }
         curc = Next();
     }
+    tsp_->SetEndLoc(SaveCurLoc());
     return std::move(tsp_);
 }
 
@@ -200,6 +201,8 @@ char Scanner::CurChar() const {
 char Scanner::Next() {
     if (*cur_charp_ == '\n') {
         std::advance(cur_charp_, 1);
+        if (cur_charp_ == fcontent_.cend())
+            return 0;
         ++cur_row_;
         cur_column_ = 1;
         cur_linep_ = cur_charp_;

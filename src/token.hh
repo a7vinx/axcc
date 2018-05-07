@@ -66,7 +66,7 @@ enum class TokenType {
     IDENTIFIER, COMMENT, STRING,
     I_CONSTANT, F_CONSTANT, C_CONSTANT,
     // Others
-    NEWLINE, INVALID
+    NEWLINE, INVALID, END
 };
 
 class Token {
@@ -129,18 +129,18 @@ public:
     void PushBack(const Token& t) {
         token_list_.push_back(std::make_unique<Token>(t));
     }
+    void SetEndLoc(const SourceLocation& loc) {
+        end_token_.SetLocPtr(std::make_shared<const SourceLocation>(loc)); }
 
     // Helper functions for iterating token sequence.
     // All the following functions can only be used after Begin() has been
     // called and the parameter n, if it has, should be positive (no check
     // is performed inside).
-    // (Maybe we can add a Token::END type so that we can return reference
-    // type here?)
     Token* Begin();
     Token* Next();
     Token* CurToken();
-    Token* LookAhead() const { return LookAheadN(1); }
-    Token* LookAheadN(int n) const;
+    Token* LookAhead() { return LookAheadN(1); }
+    Token* LookAheadN(int n);
     // Wrapper functions for adjusting the token list.
     // The previous n tokens indicated by the parameter n include the current
     // token (i.e., if n = 1 only the current token will be erased).
@@ -156,6 +156,7 @@ private:
     std::list<std::unique_ptr<Token>> token_list_{};
     // This iterator points to the next token in the list, not the current one.
     std::list<std::unique_ptr<Token>>::iterator token_list_iter_{};
+    Token end_token_{TokenType::END};
 };
 
 }
