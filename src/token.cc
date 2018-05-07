@@ -31,6 +31,12 @@ TokenSequence::TokenSequence(const TokenSequence& other)
     }
 }
 
+TokenSequence::TokenSequence(TokenSequence&& other)
+    : token_list_{std::move(other.token_list_)},
+      end_token_{std::move(other.end_token_)} {
+    other.token_list_.clear();
+}
+
 Token* TokenSequence::Begin() {
     token_list_iter_ = token_list_.begin();
     return Next();

@@ -115,7 +115,7 @@ public:
     TokenSequence() = default;
     // Deep copy
     TokenSequence(const TokenSequence& other);
-    TokenSequence(TokenSequence&&) = default;
+    TokenSequence(TokenSequence&&);
     TokenSequence& operator=(const TokenSequence&) = delete;
     TokenSequence& operator=(TokenSequence&&) = delete;
     virtual ~TokenSequence() = default;
