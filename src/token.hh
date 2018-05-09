@@ -144,9 +144,7 @@ public:
     // Wrapper functions for adjusting the token list.
     // The previous n tokens indicated by the parameter n include the current
     // token (i.e., if n = 1 only the current token will be erased).
-    void ErasePrevN(int n) {
-        token_list_.erase(std::prev(token_list_iter_, n), token_list_iter_);
-    }
+    void ErasePrevN(int n);
     void ReplacePrevN(int n, TokenSequence&& ts);
     void ReplacePrevN(int n, const std::vector<Token>& tv);
 
@@ -156,7 +154,11 @@ private:
     std::list<std::unique_ptr<Token>> token_list_{};
     // This iterator points to the next token in the list, not the current one.
     std::list<std::unique_ptr<Token>>::iterator token_list_iter_{};
+    // Make this end token behave as if it were in the list of tokens and it
+    // will never be erased. ErasePrevN() has been modified to match this
+    // behavior.
     Token end_token_{TokenType::END};
+    bool reach_end_{true};
 };
 
 }

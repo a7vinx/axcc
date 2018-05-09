@@ -38,28 +38,36 @@ TokenSequence::TokenSequence(TokenSequence&& other)
 }
 
 Token* TokenSequence::Begin() {
+    reach_end_ = false;
     token_list_iter_ = token_list_.begin();
     return Next();
 }
 
 Token* TokenSequence::Next() {
-    if (token_list_iter_ == token_list_.end())
+    if (reach_end_ || token_list_iter_ == token_list_.end()) {
+        reach_end_ = true;
         return &end_token_;
+    }
     auto ret = token_list_iter_;
     std::advance(token_list_iter_, 1);
     return &(**ret);
 }
 
 Token* TokenSequence::CurToken() {
-    if (std::distance(token_list_.cbegin(), {token_list_iter_}) < 1)
+    if (reach_end_ || token_list_iter_ == token_list_.begin())
         return &end_token_;
     return &(**std::prev(token_list_iter_, 1));
 }
 
 Token* TokenSequence::LookAheadN(int n) {
-    if (std::distance({token_list_iter_}, token_list_.cend()) < n)
+    if (reach_end_ || std::distance({token_list_iter_}, token_list_.end()) < n)
         return &end_token_;
     return &(**std::next(token_list_iter_, n - 1));
+}
+
+void TokenSequence::ErasePrevN(int n) {
+    if (reach_end_) n -= 1;
+    token_list_.erase(std::prev(token_list_iter_, n), token_list_iter_);
 }
 
 void TokenSequence::ReplacePrevN(int n, TokenSequence&& ts) {
