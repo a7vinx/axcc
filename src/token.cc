@@ -87,4 +87,3 @@ void TokenSequence::ReplacePrevN(int n, const std::vector<Token>& tv) {
 }
 
 }
-

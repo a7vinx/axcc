@@ -93,8 +93,7 @@ public:
     const SourceLocation& Loc() const { return *locp_; }
     std::shared_ptr<const SourceLocation> LocPtr() const { return locp_; }
     void SetLocPtr(const std::shared_ptr<const SourceLocation>& locp) {
-        locp_ = locp;
-    }
+        locp_ = locp; }
 
 private:
     const TokenType tag_;
@@ -124,11 +123,9 @@ public:
     template<typename... Args>
     void EmplaceBack(Args&&... args) {
         token_list_.emplace_back(
-                        std::make_unique<Token>(std::forward<Args>(args)...));
-    }
+                        std::make_unique<Token>(std::forward<Args>(args)...)); }
     void PushBack(const Token& t) {
-        token_list_.push_back(std::make_unique<Token>(t));
-    }
+        token_list_.push_back(std::make_unique<Token>(t)); }
     void SetEndLoc(const SourceLocation& loc) {
         end_token_.SetLocPtr(std::make_shared<const SourceLocation>(loc)); }
 
