@@ -8,6 +8,7 @@
 #include <memory>
 #include <cstdlib>
 #include <utility>
+#include <unordered_map>
 
 namespace axcc {
 
@@ -94,12 +95,14 @@ public:
     std::shared_ptr<const SourceLocation> LocPtr() const { return locp_; }
     void SetLocPtr(const std::shared_ptr<const SourceLocation>& locp) {
         locp_ = locp; }
+    static std::string TypeToStr(const TokenType& tag);
 
 private:
     const TokenType tag_;
     // Integer and float constant is stored as string for now.
     const std::string token_str_{};
     std::shared_ptr<const SourceLocation> locp_{};
+    static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };
 
 inline bool operator==(const Token& lhs, const Token& rhs) {
