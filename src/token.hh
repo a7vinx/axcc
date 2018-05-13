@@ -73,10 +73,10 @@ enum class TokenType {
 class Token {
 public:
     Token(const TokenType& tag, const std::string& token_str,
-          const std::shared_ptr<const SourceLocation>& locp)
+          const std::shared_ptr<SourceLocation>& locp)
         : tag_{tag}, token_str_{token_str}, locp_{locp} {}
     Token(const TokenType& tag,
-          const std::shared_ptr<const SourceLocation>& locp)
+          const std::shared_ptr<SourceLocation>& locp)
         : tag_{tag}, locp_{locp} {}
     // No loction pointer version for constructing the token whose location
     // pointer is meaningless.
@@ -92,8 +92,8 @@ public:
     TokenType Tag() const { return tag_; }
     std::string TokenStr() const { return token_str_; }
     const SourceLocation& Loc() const { return *locp_; }
-    std::shared_ptr<const SourceLocation> LocPtr() const { return locp_; }
-    void SetLocPtr(const std::shared_ptr<const SourceLocation>& locp) {
+    std::shared_ptr<SourceLocation> LocPtr() const { return locp_; }
+    void SetLocPtr(const std::shared_ptr<SourceLocation>& locp) {
         locp_ = locp; }
     static std::string TypeToStr(const TokenType& tag);
 
@@ -101,7 +101,7 @@ private:
     const TokenType tag_;
     // Integer and float constant is stored as string for now.
     const std::string token_str_{};
-    std::shared_ptr<const SourceLocation> locp_{};
+    std::shared_ptr<SourceLocation> locp_{};
     static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };
 
@@ -130,7 +130,7 @@ public:
     void PushBack(const Token& t) {
         token_list_.push_back(std::make_unique<Token>(t)); }
     void SetEndLoc(const SourceLocation& loc) {
-        end_token_.SetLocPtr(std::make_shared<const SourceLocation>(loc)); }
+        end_token_.SetLocPtr(std::make_shared<SourceLocation>(loc)); }
 
     // Helper functions for iterating token sequence.
     // All the following functions can only be used after Begin() has been
