@@ -111,6 +111,15 @@ inline bool operator==(const Token& lhs, const Token& rhs) {
 inline bool operator!=(const Token& lhs, const Token& rhs) {
     return !(lhs == rhs);
 }
+inline bool IsEndToken(const Token& t) {
+    return t.Tag() == TokenType::END;
+}
+inline bool IsNewLineToken(const Token& t) {
+    return t.Tag() == TokenType::NEWLINE;
+}
+inline bool IsIdentToken(const Token& t) {
+    return t.Tag() == TokenType::IDENTIFIER;
+}
 
 class TokenSequence {
 public:
