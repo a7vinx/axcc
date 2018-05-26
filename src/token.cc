@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "token.hh"
 
 namespace axcc {
@@ -124,6 +126,21 @@ std::string LocStr(const SourceLocation& loc) {
     locstr += '^';
     locstr += '\n';
     return locstr;
+}
+
+Token::HideSet HSIntersect(const Token::HideSet& lhs,
+                           const Token::HideSet& rhs) {
+    Token::HideSet hs;
+    std::set_intersection(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
+                          std::inserter(hs, hs.cbegin()));
+    return hs;
+}
+
+Token::HideSet HSUnion(const Token::HideSet& lhs, const Token::HideSet& rhs) {
+    Token::HideSet hs;
+    std::set_union(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
+                   std::inserter(hs, hs.cbegin()));
+    return hs;
 }
 
 TokenSequence::TokenSequence(const TokenSequence& other)

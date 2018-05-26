@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <utility>
 #include <unordered_map>
+#include <set>
 
 namespace axcc {
 
@@ -72,6 +73,9 @@ enum class TokenType {
 
 class Token {
 public:
+    // Type alias
+    using HideSet = std::set<std::string>;
+
     Token(const TokenType& tag, const std::string& token_str,
           const std::shared_ptr<SourceLocation>& locp)
         : tag_{tag}, token_str_{token_str}, locp_{locp} {}
@@ -95,6 +99,14 @@ public:
     std::shared_ptr<SourceLocation> LocPtr() const { return locp_; }
     void SetLocPtr(const std::shared_ptr<SourceLocation>& locp) {
         locp_ = locp; }
+    void HSAdd(const std::string& token_str) {
+        hs_.insert(token_str_); }
+    void HSAdd(const HideSet& hs) {
+        hs_.insert(hs.cbegin(), hs.cend()); }
+    bool HSHas(const std::string& token_str) const {
+        return hs_.find(token_str_) != hs_.cend(); }
+    const HideSet& GetHideSet() const { return hs_; }
+    void SetHideSet(const HideSet& hs) { hs_ = hs; }
     static std::string TypeToStr(const TokenType& tag);
 
 private:
@@ -102,8 +114,12 @@ private:
     // Integer and float constant is stored as string for now.
     const std::string token_str_{};
     std::shared_ptr<SourceLocation> locp_{};
+    HideSet hs_{};
     static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };
+
+Token::HideSet HSIntersect(const Token::HideSet& lhs, const Token::HideSet& rhs);
+Token::HideSet HSUnion(const Token::HideSet& lhs, const Token::HideSet& rhs);
 
 inline bool operator==(const Token& lhs, const Token& rhs) {
     return (lhs.Tag() == rhs.Tag()) && (lhs.TokenStr() == rhs.TokenStr());
