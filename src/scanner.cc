@@ -207,9 +207,7 @@ char Scanner::Next() {
         ++cur_row_;
         cur_column_ = 1;
         cur_linep_ = cur_charp_;
-        cur_line_len_ = FindNext('\n');
-        if (cur_line_len_ == 0)
-            cur_line_len_ = std::distance(cur_linep_, fcontent_.cend());
+        cur_line_len_ = FindNextNewline();
     } else {
         std::advance(cur_charp_, 1);
         ++cur_column_;
@@ -268,14 +266,13 @@ bool Scanner::Try(const std::string& chars) {
     return true;
 }
 
-unsigned int Scanner::FindNext(char c) const {
+unsigned int Scanner::FindNextNewline() const {
     unsigned int distance = 0;
     auto cur_charp = cur_charp_;
     do {
-        if (cur_charp == fcontent_.cend())
-           return 0;
-        if (*cur_charp == c && cur_charp != cur_charp_)
-           break;
+        if (cur_charp == fcontent_.cend() ||
+            *cur_charp == '\n')
+           return distance;
         std::advance(cur_charp, 1);
     } while (++distance);
     return distance;

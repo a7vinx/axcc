@@ -17,11 +17,8 @@ public:
           fcontent_{fcontent},
           cur_linep_{fcontent_.cbegin()},
           cur_charp_{fcontent_.cbegin()},
-          cur_line_len_{FindNext('\n')},
-          tsp_{std::make_unique<TokenSequence>()} {
-        if (cur_line_len_ == 0)
-            cur_line_len_ = fcontent.size();
-    }
+          cur_line_len_{FindNextNewline()},
+          tsp_{std::make_unique<TokenSequence>()} {}
     Scanner(const Scanner&) = delete;
     Scanner(Scanner&&) = delete;
     Scanner& operator=(const Scanner&) = delete;
@@ -43,9 +40,8 @@ private:
     bool NextIs(char c) const { return LookAhead() == c; }
     bool Try(char c);
     bool Try(const std::string& chars);
-    // Return the distance to the next char represented by parameter c and
-    // return 0 if not find.
-    unsigned int FindNext(char c) const;
+    // Return the distance from current position to next newline.
+    unsigned int FindNextNewline() const;
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str,
                        const SourceLocation& loc);
     void MakeTokenInTS(const TokenType& tag, const SourceLocation& loc);
