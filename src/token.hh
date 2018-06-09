@@ -132,7 +132,7 @@ inline bool operator!=(const Token& lhs, const Token& rhs) {
 inline bool IsEndToken(const Token& t) {
     return t.Tag() == TokenType::END;
 }
-inline bool IsNewLineToken(const Token& t) {
+inline bool IsNewlineToken(const Token& t) {
     return t.Tag() == TokenType::NEWLINE;
 }
 inline bool IsIdentToken(const Token& t) {
