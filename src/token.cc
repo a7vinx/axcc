@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 
 #include "token.hh"
 
@@ -148,6 +149,11 @@ Token::HideSet HSUnion(const Token::HideSet& lhs, const Token::HideSet& rhs) {
     std::set_union(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
                    std::inserter(hs, hs.cbegin()));
     return hs;
+}
+
+bool IsIdentOrKeyword(const Token& t) {
+    char c = TokenStr(t)[0];
+    return (std::isalpha(c) || std::isdigit(c) || c == '_');
 }
 
 TokenSequence::TokenSequence(const TokenSequence& other)

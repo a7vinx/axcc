@@ -138,6 +138,7 @@ inline bool IsNewLineToken(const Token& t) {
 inline bool IsIdentToken(const Token& t) {
     return t.Tag() == TokenType::IDENTIFIER;
 }
+bool IsIdentOrKeyword(const Token& t);
 
 class TokenSequence {
 public:
