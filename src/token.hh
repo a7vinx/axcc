@@ -118,6 +118,8 @@ private:
     static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };
 
+std::string TokenStr(const Token& t);
+
 Token::HideSet HSIntersect(const Token::HideSet& lhs, const Token::HideSet& rhs);
 Token::HideSet HSUnion(const Token::HideSet& lhs, const Token::HideSet& rhs);
 

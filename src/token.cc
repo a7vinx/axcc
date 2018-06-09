@@ -128,6 +128,13 @@ std::string LocStr(const SourceLocation& loc) {
     return locstr;
 }
 
+std::string TokenStr(const Token& t) {
+    if (t.TokenStr().empty())
+        return Token::TypeToStr(t.Tag());
+    else
+        return t.TokenStr();
+}
+
 Token::HideSet HSIntersect(const Token::HideSet& lhs,
                            const Token::HideSet& rhs) {
     Token::HideSet hs;
