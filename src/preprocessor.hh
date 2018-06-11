@@ -44,7 +44,7 @@ private:
     // Due to the incomplete type of Macro class, this map can neither be
     // specialized with Macro class nor be initialized using member initializer.
     std::map<std::string, std::unique_ptr<Macro>> macros_;
-    std::unique_ptr<PPConditions> conditions_{};
+    std::unique_ptr<PPConditions> conditionsp_{};
 };
 
 }
