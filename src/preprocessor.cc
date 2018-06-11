@@ -106,9 +106,9 @@ void Preprocessor::AddInitMacros() {
     char time_buf[100];
     std::time_t now_t = std::time(nullptr);
     std::tm* now = std::localtime(&now_t);
-    strftime(time_buf, sizeof(time_buf), "b d Y", now);
+    std::strftime(time_buf, sizeof(time_buf), "b d Y", now);
     AddMacro({"__DATE__", {{TokenType::STRING, time_buf}}});
-    strftime(time_buf, sizeof(time_buf), "T", now);
+    std::strftime(time_buf, sizeof(time_buf), "T", now);
     AddMacro({"__TIME__", {{TokenType::STRING, time_buf}}});
     // Other predefined macros
     AddMacro({"__STDC__", {{TokenType::LONG, "1"}}});

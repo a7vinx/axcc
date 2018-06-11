@@ -71,7 +71,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
             case ',': MakeTokenInTS(TokenType::COMMA); break;
             case ';': MakeTokenInTS(TokenType::SEMI); break;
             case '.':
-                if (isdigit(LookAhead())) ScanNumConstant();
+                if (std::isdigit(LookAhead())) ScanNumConstant();
                 else if (Try("..")) MakeTokenInTS(TokenType::ELLIP);
                 else MakeTokenInTS(TokenType::DOT);
                 break;
@@ -165,7 +165,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
                 if (NextIs('\'')) { ScanCharConstant(); break; }
                 else if (NextIs('\"')) { ScanStrLiteral(); break; }
             default:
-                if (isspace(curc))
+                if (std::isspace(curc))
                     break;
                 else if (curc >= '0' && curc <= '9')
                     ScanNumConstant();
@@ -334,11 +334,12 @@ void Scanner::ScanNumConstant() {
     if (curc == '.')
         tag = TokenType::F_CONSTANT;
     char peekc = LookAheadN(2);
-    if ((isxdigit(peekc) || peekc == '.') &&
+    if ((std::isxdigit(peekc) || peekc == '.') &&
         (curc = '0' && (Try('x') || Try('X'))))
         has_hex_prefix = true;
     while ((peekc = LookAhead()) != 0) {
-        if (isdigit(peekc) || isalpha(peekc) || peekc == '.' || peekc == '_') {
+        if (std::isdigit(peekc) || std::isalpha(peekc) ||
+            peekc == '.' || peekc == '_') {
             if (peekc == 'e' || peekc == 'E' || peekc == 'p' || peekc == 'P') {
                 if (LookAheadN(2) == '+' || LookAheadN(2) == '-')
                     Next();
@@ -351,7 +352,8 @@ void Scanner::ScanNumConstant() {
             }
             if ((peekc == '.') && !has_invalid)
                 tag = TokenType::F_CONSTANT;
-            if (!isdigit(peekc) && !(has_hex_prefix && isxdigit(peekc)))
+            if (!std::isdigit(peekc) &&
+                !(has_hex_prefix && std::isxdigit(peekc)))
                 has_invalid = true;
             Next();
             continue;
@@ -415,7 +417,7 @@ void Scanner::ScanIdent() {
     while ((peekc = LookAhead()) != 0) {
         if (Try("\\u") || Try("\\U"))
             continue;
-        if (!isalpha(peekc) && !isdigit(peekc) && peekc != '_')
+        if (!std::isalpha(peekc) && !std::isdigit(peekc) && peekc != '_')
             break;
         Next();
     }
