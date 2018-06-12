@@ -100,6 +100,14 @@ void Preprocessor::RmMacro(const std::string& ident) {
         macros_.erase(iter);
 }
 
+const Macro* Preprocessor::GetMacro(const std::string& ident) {
+    auto iter = macros_.find(ident);
+    if (iter != macros_.cend())
+        return &iter->second;
+    else
+        return nullptr;
+}
+
 void Preprocessor::AddInitMacros() {
     // Macro __FILE__ and __LINE__ will be handled seperately.
     // Add time related predefined macro

@@ -33,6 +33,9 @@ private:
     // performed.
     bool AddMacro(const Macro& macro);
     void RmMacro(const std::string& ident);
+    bool HasMacro(const std::string& ident) {
+        return macros_.find(ident) != macros_.cend(); }
+    const Macro* GetMacro(const std::string& ident);
     void AddHeaderPath(const std::string& path) {
         header_paths_.push_back(path); }
     void AddInitMacros();
