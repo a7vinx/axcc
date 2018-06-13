@@ -50,9 +50,14 @@ public:
         conditions_.push({state, true, loc}); }
     void CondEnd() { conditions_.pop(); }
     bool HasNextElse() const { return conditions_.top().has_next_else; }
-    void EncounterElse() { conditions_.top().has_next_else = false; }
-    bool CurState() const { return conditions_.top().state; }
+    void EncounterElse() {
+        conditions_.top().has_next_else = false;
+        conditions_.top().state = !conditions_.top().state;
+    }
+    bool CurState() const {
+        return conditions_.empty() || conditions_.top().state; }
     void SetCurState(bool state) { conditions_.top().state = state; }
+    bool IsEmpty() const { return conditions_.empty(); }
     SourceLocation BeginLoc() const { return conditions_.top().begin_loc; }
 
 private:
