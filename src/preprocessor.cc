@@ -75,7 +75,7 @@ private:
 // Macro class.
 Preprocessor::Preprocessor(TokenSequence& ts,
                            std::map<std::string, std::string>& files,
-                           const std::vector<std::string>& header_paths)
+                           const std::list<std::string>& header_paths)
     : ts_{ts}, files_{files}, header_paths_{header_paths}, macros_{} {
     AddInitMacros();
     AddInitHeaderPaths();

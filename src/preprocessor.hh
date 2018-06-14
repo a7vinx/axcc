@@ -15,7 +15,7 @@ class Preprocessor {
 public:
     Preprocessor(TokenSequence& ts,
                  std::map<std::string, std::string>& files,
-                 const std::vector<std::string>& header_paths);
+                 const std::list<std::string>& header_paths);
     Preprocessor(const Preprocessor&) = delete;
     Preprocessor(Preprocessor&&) = delete;
     Preprocessor& operator=(const Preprocessor&) = delete;
@@ -43,7 +43,7 @@ private:
 
     TokenSequence& ts_;
     std::map<std::string, std::string>& files_;
-    std::vector<std::string> header_paths_;
+    std::list<std::string> header_paths_;
     // Due to the incomplete type of Macro class, this map can neither be
     // specialized with Macro class nor be initialized using member initializer.
     std::map<std::string, std::unique_ptr<Macro>> macros_;
