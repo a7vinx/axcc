@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cctype>
 #include <cassert>
+#include <sys/stat.h>
 
 #include "scanner.hh"
 #include "error.hh"
@@ -430,10 +431,18 @@ void Scanner::ScanIdent() {
     MakeTokenInTS(TokenType::IDENTIFIER, token_str, loc);
 }
 
+bool FileExist(const std::string& fname) {
+    struct stat st;
+    // It should be a regular file.
+    if (stat(fname.c_str(), &st) || !S_ISREG(st.st_mode))
+        return false;
+    return true;
+}
+
 std::string ReadFile(const std::string& fname) {
     std::ifstream infile{fname};
     if (!infile.is_open()) {
-        Error("No such file or directory: '" + fname + "'");
+        Error("cannot open file '" + fname + "'");
         return {};
     }
     std::stringstream buffer;

@@ -70,6 +70,8 @@ private:
     static const std::unordered_map<std::string, TokenType> kKeyToType_;
 };
 
+// Check whether the specified file exists.
+bool FileExist(const std::string& fname);
 // Maybe we can return a smart pointer?
 std::string ReadFile(const std::string& fname);
 // void SubstTrigraph(const std::string& fcontent);
