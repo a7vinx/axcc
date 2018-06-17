@@ -3,7 +3,6 @@
 
 #include <string>
 #include <list>
-#include <vector>
 #include <iterator>
 #include <memory>
 #include <cstdlib>
@@ -174,7 +173,7 @@ public:
     // token (i.e., if n = 1 only the current token will be erased).
     void ErasePrevN(int n);
     void ReplacePrevN(int n, TokenSequence&& ts);
-    void ReplacePrevN(int n, const std::vector<Token>& tv);
+    void ReplacePrevN(int n, const std::list<Token>& tl);
 
 private:
     // Use pointers here to speed up the merging process of two token

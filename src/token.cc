@@ -210,12 +210,12 @@ void TokenSequence::ReplacePrevN(int n, TokenSequence&& ts) {
     std::advance(token_list_iter_, -ts.token_list_.size());
 }
 
-void TokenSequence::ReplacePrevN(int n, const std::vector<Token>& tv) {
+void TokenSequence::ReplacePrevN(int n, const std::list<Token>& tl) {
     ErasePrevN(n);
-    for (auto const& t : tv) {
+    for (auto const& t : tl) {
         token_list_.insert(token_list_iter_, std::make_unique<Token>(t));
     }
-    std::advance(token_list_iter_, -tv.size());
+    std::advance(token_list_iter_, -tl.size());
 }
 
 }
