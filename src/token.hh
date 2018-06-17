@@ -93,7 +93,7 @@ public:
     virtual ~Token() = default;
 
     TokenType Tag() const { return tag_; }
-    std::string TokenStr() const { return token_str_; }
+    std::string TokenStr() const;
     const SourceLocation& Loc() const { return *locp_; }
     std::shared_ptr<SourceLocation> LocPtr() const { return locp_; }
     void SetLocPtr(const std::shared_ptr<SourceLocation>& locp) {
@@ -116,8 +116,6 @@ private:
     HideSet hs_{};
     static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };
-
-std::string TokenStr(const Token& t);
 
 Token::HideSet HSIntersect(const Token::HideSet& lhs, const Token::HideSet& rhs);
 Token::HideSet HSUnion(const Token::HideSet& lhs, const Token::HideSet& rhs);

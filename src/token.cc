@@ -129,11 +129,11 @@ std::string LocStr(const SourceLocation& loc) {
     return locstr;
 }
 
-std::string TokenStr(const Token& t) {
-    if (t.TokenStr().empty())
-        return Token::TypeToStr(t.Tag());
+std::string Token::TokenStr() const {
+    if (token_str_.empty())
+        return TypeToStr(tag_);
     else
-        return t.TokenStr();
+        return token_str_;
 }
 
 Token::HideSet HSIntersect(const Token::HideSet& lhs,
@@ -152,7 +152,10 @@ Token::HideSet HSUnion(const Token::HideSet& lhs, const Token::HideSet& rhs) {
 }
 
 bool IsIdentOrKeyword(const Token& t) {
-    char c = TokenStr(t)[0];
+    std::string token_str{t.TokenStr()};
+    if (token_str.empty())
+        return false;
+    char c = token_str[0];
     return (std::isalpha(c) || std::isdigit(c) || c == '_');
 }
 
