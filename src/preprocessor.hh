@@ -28,9 +28,10 @@ private:
     class Macro;
     class PPConditions;
 
-    // Return false if the identifier of the macro waiting to be added has
-    // already been added before, while the adding action will still be
-    // performed.
+    // The adding action will always be performed unless the new definition is
+    // effectively the same as the old one.
+    // Return true if it is a redefinition. Note that if the new definition is
+    // effectively the same, it will return false.
     bool AddMacro(const Macro& macro);
     void RmMacro(const std::string& ident);
     bool HasMacro(const std::string& ident) {

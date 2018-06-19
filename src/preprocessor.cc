@@ -95,15 +95,30 @@ void Preprocessor::Preprocess() {
 }
 
 bool Preprocessor::AddMacro(const Macro& macro) {
-    bool has_added = true;
+    bool is_redef = false;
     std::string ident{macro.Ident()};
     auto iter = macros_.find(ident);
-    if (iter == macros_.cend())
-        has_added = false;
-    else
+    if (iter != macros_.cend()) {
+        // If the new definition is effectively the same, the redefinition is
+        // silently ignored.
+        const Macro& orig_macro = *iter->second;
+        auto orig_repl = orig_macro.Repl();
+        auto new_repl = macro.Repl();
+        if (std::equal(orig_repl.cbegin(), orig_repl.cend(),
+                       new_repl.cbegin(), new_repl.cend()) &&
+            (orig_macro.IsFuncLike() == macro.IsFuncLike()) &&
+            // If it is a function-like macro, the parameters should also be
+            // the same.
+            (!orig_macro.IsFuncLike() ||
+             std::equal(orig_macro.Params().cbegin(), orig_macro.Params().cend(),
+                        macro.Params().cbegin(), macro.Params().cend()))) {
+            return is_redef;
+        }
         macros_.erase(iter);
+        is_redef = true;
+    }
     macros_.emplace(ident, std::make_unique<Macro>(macro));
-    return has_added;
+    return is_redef;
 }
 
 void Preprocessor::RmMacro(const std::string& ident) {
