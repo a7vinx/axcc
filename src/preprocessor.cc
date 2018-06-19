@@ -127,10 +127,11 @@ void Preprocessor::RmMacro(const std::string& ident) {
         macros_.erase(iter);
 }
 
-const Macro* Preprocessor::GetMacro(const std::string& ident) {
+const Preprocessor::Macro* Preprocessor::GetMacro(
+          const std::string& ident) const {
     auto iter = macros_.find(ident);
     if (iter != macros_.cend())
-        return &iter->second;
+        return &*iter->second;
     else
         return nullptr;
 }

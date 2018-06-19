@@ -34,9 +34,9 @@ private:
     // effectively the same, it will return false.
     bool AddMacro(const Macro& macro);
     void RmMacro(const std::string& ident);
-    bool HasMacro(const std::string& ident) {
+    bool HasMacro(const std::string& ident) const {
         return macros_.find(ident) != macros_.cend(); }
-    const Macro* GetMacro(const std::string& ident);
+    const Macro* GetMacro(const std::string& ident) const;
     void AddHeaderPath(const std::string& path) {
         header_paths_.push_back(path); }
     void AddInitMacros();
