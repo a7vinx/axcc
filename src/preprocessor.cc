@@ -15,8 +15,13 @@ public:
     // For funcion-like macro, use empty vector as argument for macros with zero
     // parameter.
     Macro(const std::string& ident, const std::list<Token>& repl,
-          const std::vector<std::string>& params)
-        : ident_{ident}, repl_{repl}, params_{params}, is_obj_like_{false} {}
+          const std::vector<std::string>& params, bool is_variadic)
+        : ident_{ident}, repl_{repl}, params_{params}, is_obj_like_{false},
+          is_variadic_{is_variadic} {
+        // For variadic functions, always add a parameter named __VA_ARGS__.
+        if (is_variadic_)
+            params_.push_back("__VA_ARGS__");
+    }
     Macro(const Macro&) = default;
     Macro(Macro&&) = default;
     Macro& operator=(const Macro&) = delete;
@@ -28,13 +33,15 @@ public:
     std::string Ident() const { return ident_; }
     std::list<Token> Repl() const { return repl_; }
     // For function-like macro
-    std::vector<std::string> Params() const { return params_; }
+    const std::vector<std::string>& Params() const { return params_; }
+    bool IsVariadic() const { return is_variadic_; }
 
 private:
     const bool is_obj_like_;
     const std::string ident_;
     const std::list<Token> repl_;
-    const std::vector<std::string> params_{};
+    std::vector<std::string> params_{};
+    const bool is_variadic_{false};
 };
 
 class Preprocessor::PPConditions {
