@@ -125,7 +125,6 @@ std::string LocStr(const SourceLocation& loc) {
     // Add '^' in the next line to point to target token
     locstr += std::string(loc_prefix_len + loc.column - skipn - 1, ' ');
     locstr += '^';
-    locstr += '\n';
     return locstr;
 }
 
