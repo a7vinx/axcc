@@ -1,5 +1,6 @@
 #include <ctime>
 #include <stack>
+#include <sstream>
 
 #include "preprocessor.hh"
 #include "scanner.hh"
@@ -134,6 +135,81 @@ const Preprocessor::Macro* Preprocessor::GetMacro(
         return &*iter->second;
     else
         return nullptr;
+}
+
+namespace {
+
+std::string GetDirFromPath(const std::string& path) {
+    auto index = path.rfind('/');
+    if (index == -1)
+        return {};
+    else
+        return path.substr(0, index + 1);
+}
+
+// Remove extra "./" and "../" and continuously repeated '/' in path if
+// possible.
+std::string SimplifyPath(const std::string& path) {
+    if (path.empty())
+        return {};
+    std::string ret;
+    std::string cur_dir;
+    std::vector<std::string> stk;
+    std::stringstream ss{path};
+    if (path.front() == '/')
+        stk.push_back("/");
+    while (std::getline(ss, cur_dir, '/')) {
+        if (cur_dir.empty())
+            continue;
+        if (cur_dir == ".") {
+            if (stk.empty())
+                stk.push_back(".");
+            else
+                continue;
+        } else if (cur_dir != "..") {
+            stk.push_back(cur_dir);
+        } else if (!stk.empty() && stk.back() != "." &&
+                   stk.back() != ".." && stk.back() != "/") {
+            stk.pop_back();
+        } else {
+            stk.push_back(cur_dir);
+        }
+    }
+    for (const auto& dir : stk)
+        ret += dir + "/";
+    if (path.front() == '/' && path.back() == '/' && stk.size() == 1)
+        return "/";
+    if (path.front() == '/')
+        ret = ret.substr(1);
+    if (path.back() != '/' && path.back() != '.')
+        ret.pop_back();
+    return ret;
+}
+
+} // unnamed namespace
+
+std::string Preprocessor::FindHeader(const std::string& fname,
+                                     bool include_cur_path,
+                                     const std::string& cur_path) {
+    if (fname.empty())
+        return {};
+    if (fname.front() == '/') {
+        if (FileExist(fname))
+            return fname;
+        return {};
+    }
+    if (include_cur_path)
+        header_paths_.push_front(GetDirFromPath(cur_path));
+    std::string found_path;
+    for (const auto& dir : header_paths_) {
+        if (FileExist(dir + fname)) {
+            found_path = dir + fname;
+            break;
+        }
+    }
+    if (include_cur_path)
+        header_paths_.pop_front();
+    return SimplifyPath(found_path);
 }
 
 void Preprocessor::AddInitMacros() {

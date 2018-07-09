@@ -39,6 +39,10 @@ private:
     const Macro* GetMacro(const std::string& ident) const;
     void AddHeaderPath(const std::string& path) {
         header_paths_.push_back(path); }
+    // Return the path of the found file and return an empty string if not found.
+    std::string FindHeader(const std::string& fname,
+                           bool include_cur_path,
+                           const std::string& cur_path);
     void AddInitMacros();
     void AddInitHeaderPaths();
 
