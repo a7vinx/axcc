@@ -84,7 +84,12 @@ private:
 Preprocessor::Preprocessor(TokenSequence& ts,
                            std::map<std::string, std::string>& files,
                            const std::list<std::string>& header_paths)
-    : ts_{ts}, files_{files}, header_paths_{header_paths}, macros_{} {
+    : ts_{ts}, files_{files}, header_paths_{header_paths}, macros_{},
+      conditionsp_{std::make_unique<PPConditions>()} {
+    for (auto& dir : header_paths_) {
+        if (dir.back() != '/')
+            dir.push_back('/');
+    }
     AddInitMacros();
     AddInitHeaderPaths();
 }
