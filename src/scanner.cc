@@ -292,14 +292,14 @@ void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str) 
     tsp_->EmplaceBack(tag, token_str,
                       std::make_shared<SourceLocation>(
                                SourceLocation{&fname_, cur_row_, cur_column_,
-                                              cur_linep_, cur_line_len_}));
+                                              cur_linep_, cur_line_len_, false}));
 }
 
 void Scanner::MakeTokenInTS(const TokenType& tag) {
     tsp_->EmplaceBack(tag, std::make_shared<SourceLocation>(
                                     SourceLocation{
                                         &fname_, cur_row_, cur_column_,
-                                        cur_linep_, cur_line_len_}));
+                                        cur_linep_, cur_line_len_, false}));
 }
 
 void Scanner::SkipComment() {

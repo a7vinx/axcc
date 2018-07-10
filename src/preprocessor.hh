@@ -6,6 +6,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <utility>
 
 #include "token.hh"
 
@@ -46,6 +47,14 @@ private:
     void AddInitMacros();
     void AddInitHeaderPaths();
 
+    // Wrapper functions of iteration functions of TokenSequence class.
+    Token* Begin() { return ts_.Begin(); }
+    Token* Next() { return PPLineCorrect(ts_.Next()); }
+    Token* CurToken() { return ts_.CurToken(); }
+    Token* LookAhead() { return LookAheadN(1); }
+    Token* LookAheadN(int n) { return PPLineCorrect(ts_.LookAheadN(n)); }
+    Token* PPLineCorrect(Token* tp);
+
     TokenSequence& ts_;
     std::map<std::string, std::string>& files_;
     std::list<std::string> header_paths_;
@@ -53,6 +62,11 @@ private:
     // specialized with Macro class nor be initialized using member initializer.
     std::map<std::string, std::unique_ptr<Macro>> macros_;
     std::unique_ptr<PPConditions> conditionsp_;
+    // Store the correction of the current line number and file name pointer
+    // caused by #line directive. Int is enough here.
+    // Each #line directive should only be used to correct the location
+    // information of tokens which are in the same file with it.
+    std::map<std::string, std::pair<int, const std::string*>> line_corr_map_{};
 };
 
 }

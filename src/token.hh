@@ -18,6 +18,7 @@ struct SourceLocation {
     unsigned int column;
     std::string::const_iterator linep;
     std::size_t line_len;
+    bool ppline_corrected;
 };
 
 // Return string like "token.hh:19:36: source code"

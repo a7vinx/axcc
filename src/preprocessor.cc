@@ -239,4 +239,19 @@ void Preprocessor::AddInitHeaderPaths() {
     AddHeaderPath("/usr/include/");
 }
 
+Token* Preprocessor::PPLineCorrect(Token* tp) {
+    SourceLocation& loc = *tp->LocPtr();
+    // Each token should be processed only once.
+    if (!loc.ppline_corrected) {
+        auto iter = line_corr_map_.find(*loc.fnamep);
+        if (iter != line_corr_map_.cend()) {
+            loc.row += iter->second.first;
+            if (iter->second.second)
+                loc.fnamep = iter->second.second;
+            loc.ppline_corrected = true;
+        }
+    }
+    return tp;
+}
+
 }

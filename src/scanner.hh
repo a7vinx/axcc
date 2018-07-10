@@ -48,7 +48,8 @@ private:
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str);
     void MakeTokenInTS(const TokenType& tag);
     SourceLocation SaveCurLoc() {
-        return {&fname_, cur_row_, cur_column_, cur_linep_, cur_line_len_}; }
+        return {&fname_, cur_row_, cur_column_,
+                cur_linep_, cur_line_len_, false}; }
 
     void SkipComment();
     void ScanNumConstant();
