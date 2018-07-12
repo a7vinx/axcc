@@ -47,6 +47,19 @@ private:
     void AddInitMacros();
     void AddInitHeaderPaths();
 
+    // Directives' parser and handler
+    void ParsePPIf();
+    void ParsePPElse(int& wait_del);
+    void ParsePPIfdef();
+    void ParsePPIfndef();
+    void ParsePPElif(int& wait_del);
+    void ParsePPEndif(int& wait_del);
+    void ParsePPDefine();
+    void ParsePPUndef();
+    void ParsePPInclude();
+    void ParsePPError();
+    void ParsePPLine();
+
     // Wrapper functions of iteration functions of TokenSequence class.
     Token* Begin() { return ts_.Begin(); }
     Token* Next() { return PPLineCorrect(ts_.Next()); }

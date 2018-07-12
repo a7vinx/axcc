@@ -97,7 +97,69 @@ Preprocessor::Preprocessor(TokenSequence& ts,
 Preprocessor::~Preprocessor() = default;
 
 void Preprocessor::Preprocess() {
-    // TODO
+    // The count of tokens waiting to be deleted.
+    // Use this variable so that we can delete a block of tokens at a time
+    // instead of delete them one by one.
+    int wait_del = 0;
+    bool follow_newline = true;
+    Token* tp = Begin();
+
+    while (!IsEndToken(*tp)) {
+        if (follow_newline && tp->Tag() == TokenType::SHARP) {
+            tp = Next();
+            switch (tp->Tag()) {
+                case TokenType::IF: ParsePPIf(); break;
+                case TokenType::ELSE: ParsePPElse(wait_del); break;
+                case TokenType::IDENTIFIER: {
+                    std::string token_str{tp->TokenStr()};
+                    if (token_str == "ifdef") ParsePPIfdef();
+                    else if (token_str == "ifndef") ParsePPIfndef();
+                    else if (token_str == "elif") ParsePPElif(wait_del);
+                    else if (token_str == "endif") ParsePPEndif(wait_del);
+                    else if (token_str == "define") ParsePPDefine();
+                    else if (token_str == "undef") ParsePPUndef();
+                    else if (token_str == "include") ParsePPInclude();
+                    else if (token_str == "error") ParsePPError();
+                    else if (token_str == "line") ParsePPLine();
+                    break;
+                }
+                case TokenType::NEWLINE:
+                case TokenType::END:
+                    ts_.ErasePrevN(2); break;
+                default:
+                    Error("invalid preprocessing directive", tp->Loc());
+                    EraseUntilNextLine(1);
+            }
+            // Now Next() should return the first token of next line or the
+            // END token. CurToken() is meaningless after the process of
+            // erasing.
+            tp = Next();
+            follow_newline = true;
+            continue;
+        }
+        if (IsNewlineToken(*tp))
+            follow_newline = true;
+        else
+            follow_newline = false;
+        if (conditionsp_->CurState()) {
+            // Note that not only identifiers but also keywords could be text
+            // macros.
+            if (HasMacro(tp->TokenStr()))
+                ExpandCurMacro();
+            else if (IsNewlineToken(*tp))
+                ts_.ErasePrevN(1);
+        } else {
+            ++wait_del;
+        }
+        // It is safe to call Next() here, even if the token sequence has
+        // already reached the end.
+        tp = Next();
+    }
+    // Check unterminated conditional directive
+    while (!conditionsp_->IsEmpty()) {
+        Error("unterminated conditional directive", conditionsp_->BeginLoc());
+        conditionsp_->CondEnd();
+    }
 }
 
 bool Preprocessor::AddMacro(const Macro& macro) {
