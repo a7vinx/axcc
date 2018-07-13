@@ -60,6 +60,11 @@ private:
     void ParsePPError();
     void ParsePPLine();
 
+    // Delete tokens from the current position to the next NEWLINE or END token,
+    // plus the number of previous tokens specified by parameter prevn (does not
+    // include the current token).
+    void EraseUntilNextLine(int prevn = 0);
+    void EraseExtraTokensIfHas(int prevn = 0);
     // Wrapper functions of iteration functions of TokenSequence class.
     Token* Begin() { return ts_.Begin(); }
     Token* Next() { return PPLineCorrect(ts_.Next()); }

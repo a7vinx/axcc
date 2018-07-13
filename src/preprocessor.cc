@@ -301,6 +301,23 @@ void Preprocessor::AddInitHeaderPaths() {
     AddHeaderPath("/usr/include/");
 }
 
+void Preprocessor::EraseUntilNextLine(int prevn) {
+    int extra_count = prevn + 1;
+    Token* tp = CurToken();
+    while (!IsNewlineToken(*tp) && !IsEndToken(*tp)) {
+        ++extra_count;
+        tp = Next();
+    }
+    ts_.ErasePrevN(extra_count);
+}
+
+void Preprocessor::EraseExtraTokensIfHas(int prevn) {
+    Token* tp = Next();
+    if (!IsNewlineToken(*tp) && !IsEndToken(*tp))
+        Warning("extra tokens at end of directive", tp->Loc());
+    EraseUntilNextLine(prevn + 1);
+}
+
 Token* Preprocessor::PPLineCorrect(Token* tp) {
     SourceLocation& loc = *tp->LocPtr();
     // Each token should be processed only once.
