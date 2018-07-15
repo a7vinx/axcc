@@ -301,6 +301,99 @@ void Preprocessor::AddInitHeaderPaths() {
     AddHeaderPath("/usr/include/");
 }
 
+void Preprocessor::ParsePPIf() {
+    // TODO: Support #if directive.
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    Error("#if directive is not support yet", CurToken()->Loc());
+    EraseUntilNextLine(1);
+}
+
+void Preprocessor::ParsePPIfdef() {
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    Token* tp = Next();
+    if (IsNewlineToken(*tp) || IsEndToken(*tp)) {
+        Error("macro name missing", tp->Loc());
+        conditionsp_->CondBegin(false, tp->Loc());
+        ts_.ErasePrevN(3);
+        return;
+    }
+    if (!IsIdentOrKeyword(*tp)) {
+        Error("macro name must be an identifier", tp->Loc());
+        conditionsp_->CondBegin(false, tp->Loc());
+    } else if (HasMacro(tp->TokenStr())) {
+        conditionsp_->CondBegin(true, tp->Loc());
+    } else {
+        conditionsp_->CondBegin(false, tp->Loc());
+    }
+    EraseExtraTokensIfHas(2);
+}
+
+void Preprocessor::ParsePPIfndef() {
+    // Note that if there is no identifier following #ifndef, the subsequent
+    // conditional block will be processed. This behavior is different from
+    // clang/gcc.
+    ParsePPIfdef();
+    conditionsp_->SetCurState(!conditionsp_->CurState());
+}
+
+void Preprocessor::ParsePPElse(int& wait_del) {
+    Token* tp = CurToken();
+    if (conditionsp_->IsEmpty()) {
+        Error("#else without #if", tp->Loc());
+        EraseUntilNextLine(1);
+        return;
+    }
+    if (!conditionsp_->HasNextElse()) {
+        Error("#else after #else", tp->Loc());
+        conditionsp_->SetCurState(false);
+        EraseUntilNextLine(1);
+        return;
+    }
+    conditionsp_->EncounterElse();
+    // Delete the #else directive together with the tokens that were waiting to
+    // be deleted.
+    EraseExtraTokensIfHas(wait_del + 1);
+    // Reset the count.
+    wait_del = 0;
+}
+
+void Preprocessor::ParsePPElif(int& wait_del) {
+    // TODO: Support #elif directive.
+    Token* tp = CurToken();
+    if (conditionsp_->IsEmpty()) {
+        Error("#elif without #if", tp->Loc());
+        EraseUntilNextLine(1);
+        return;
+    }
+    if (!conditionsp_->HasNextElse()) {
+        Error("#elif after #else", tp->Loc());
+        conditionsp_->SetCurState(false);
+        EraseUntilNextLine(1);
+        return;
+    }
+    Error("#elif is not supported yet", tp->Loc());
+    EraseUntilNextLine(wait_del + 1);
+    wait_del = 0;
+}
+
+void Preprocessor::ParsePPEndif(int& wait_del) {
+    Token* tp = CurToken();
+    if (conditionsp_->IsEmpty()) {
+        Error("#endif without #if", tp->Loc());
+        EraseUntilNextLine(1);
+        return;
+    }
+    conditionsp_->CondEnd();
+    EraseExtraTokensIfHas(wait_del + 1);
+    wait_del = 0;
+}
+
 void Preprocessor::EraseUntilNextLine(int prevn) {
     int extra_count = prevn + 1;
     Token* tp = CurToken();
