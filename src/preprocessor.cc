@@ -394,6 +394,123 @@ void Preprocessor::ParsePPEndif(int& wait_del) {
     wait_del = 0;
 }
 
+void Preprocessor::ParsePPDefine() {
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    Token* tp = Next();
+    const SourceLocation& macro_loc = tp->Loc();
+    if (!IsIdentOrKeyword(*tp)) {
+        Error("macro name must be an identifier", macro_loc);
+        EraseUntilNextLine(2);
+        return;
+    }
+    std::string macro_name = tp->TokenStr();
+    if (macro_name == "defined") {
+        Error("'defined' cannot be used as a macro name", macro_loc);
+        EraseUntilNextLine(2);
+        return;
+    }
+    if (macro_name == "__FILE__" ||
+        macro_name == "__LINE__" ||
+        macro_name == "__DATE__" ||
+        macro_name == "__TIME__" ||
+        macro_name == "__STDC__" ||
+        macro_name == "__STDC_VERSION__" ||
+        macro_name == "__STDC_HOSTED__") {
+        Error("redefining builtin macro", macro_loc);
+        EraseUntilNextLine(2);
+        return;
+    }
+    tp = Next();
+    bool is_redef = false;
+    // For object-like macros
+    // We need to check whether there are whitespaces between the macro name
+    // and the left parenthesis.
+    if (tp->Tag() != TokenType::LPAR || HasPreWhiteSpace(tp->Loc())) {
+        std::list<Token> macro_repl;
+        while (!IsNewlineToken(*tp) && !IsEndToken(*tp)) {
+            macro_repl.push_back(*tp);
+            tp = Next();
+        }
+        is_redef = AddMacro({macro_name, macro_repl});
+        ts_.ErasePrevN(4 + macro_repl.size());
+    } else {
+        // For function-like macros
+        // Parse parameters
+        std::vector<std::string> params;
+        bool is_variadic = false;
+        tp = Next();
+        if (tp->Tag() != TokenType::RPAR) {
+            while (true) {
+                if (IsNewlineToken(*tp) || IsEndToken(*tp)) {
+                    Error("missing ')' in macro parameter list", tp->Loc());
+                    EraseUntilNextLine(4 + 2 * params.size());
+                    return;
+                }
+                if (tp->Tag() == TokenType::ELLIP) {
+                    is_variadic = true;
+                    tp = Next();
+                    if (tp->Tag() != TokenType::RPAR) {
+                        Error("missing ')' in macro parameter list", tp->Loc());
+                        EraseUntilNextLine(5 + 2 * params.size());
+                        return;
+                    }
+                    break;
+                }
+                if (!IsIdentOrKeyword(*tp)) {
+                    Error("expected identifier in macro parameter list",
+                          tp->Loc());
+                    EraseUntilNextLine(4 + 2 * params.size());
+                    return;
+                }
+                params.push_back(tp->TokenStr());
+                tp = Next();
+                if (tp->Tag() == TokenType::RPAR)
+                    break;
+                if (tp->Tag() != TokenType::COMMA) {
+                    Error("expected comma in macro parameter list", tp->Loc());
+                    EraseUntilNextLine(3 + 2 * params.size());
+                    return;
+                }
+                tp = Next();
+            }
+        }
+        // Parse replacement tokens
+        std::list<Token> macro_repl;
+        tp = Next();
+        while (!IsNewlineToken(*tp) && !IsEndToken(*tp)) {
+            macro_repl.push_back(*tp);
+            tp = Next();
+        }
+        is_redef = AddMacro({macro_name, macro_repl, params, is_variadic});
+        int params_size = params.size() + (is_variadic ? 1 : 0);
+        ts_.ErasePrevN(5 + (params_size == 0 ? 1 : 2 * params_size) +
+                       macro_repl.size());
+    }
+    if (is_redef)
+        Warning("'" + macro_name + "' macro redefined", macro_loc);
+}
+
+void Preprocessor::ParsePPUndef() {
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    Token* tp = Next();
+    if (IsNewlineToken(*tp) || IsEndToken(*tp)) {
+        Error("macro name missing", tp->Loc());
+        ts_.ErasePrevN(3);
+        return;
+    }
+    if (!IsIdentOrKeyword(*tp))
+        Error("macro name must be an identifier", tp->Loc());
+    else
+        RmMacro(tp->TokenStr());
+    EraseExtraTokensIfHas(2);
+}
+
 void Preprocessor::EraseUntilNextLine(int prevn) {
     int extra_count = prevn + 1;
     Token* tp = CurToken();
