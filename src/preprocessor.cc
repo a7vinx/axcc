@@ -511,6 +511,101 @@ void Preprocessor::ParsePPUndef() {
     EraseExtraTokensIfHas(2);
 }
 
+namespace {
+
+std::string WrapStr(const std::string& str) {
+    std::string ret;
+    ret.push_back('\"');
+    for (auto c : str) {
+        if (c == '\"' || c == '\\')
+            ret.push_back('\\');
+        ret.push_back(c);
+    }
+    ret.push_back('\"');
+    return ret;
+}
+
+std::string UnwrapStr(const std::string& str) {
+    std::string ret;
+    std::string str_content = str.substr(1, str.size() - 2);
+    bool follow_bslash = false;
+    for (auto iter = str_content.cbegin(); iter != str_content.cend(); ++iter) {
+        if (*iter == '\\' && !follow_bslash) {
+            follow_bslash = true;
+            continue;
+        } else {
+            follow_bslash = false;
+            ret.push_back(*iter);
+        }
+    }
+    return ret;
+}
+
+} // unnamed namespace
+
+void Preprocessor::ParsePPInclude() {
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    ExpandCurLine();
+    Token* tp = Next();
+    std::string fname;
+    bool include_cur_path = false;
+    bool err_unexpect = false;
+    const SourceLocation* err_locp = &tp->Loc();
+    int prevn = 2;
+    if (tp->Tag() == TokenType::STRING) {
+        fname = tp->TokenStr();
+        include_cur_path = true;
+        // Encoding prefix is not permitted.
+        if (fname[0] != '"')
+            err_unexpect = true;
+        // Remove the leading and trailing double quotes directly. Do not call
+        // UnwrapStr() here.
+        fname.pop_back();
+        fname = fname.substr(1);
+    } else if (tp->Tag() == TokenType::LABRACKET) {
+        do {
+            tp = Next();
+            ++prevn;
+            if (tp->Tag() == TokenType::RABRACKET)
+                break;
+            fname += tp->TokenStr();
+        } while (!IsNewlineToken(*tp) && !IsEndToken(*tp));
+        err_unexpect = true;
+        err_locp = &tp->Loc();
+    } else {
+        err_unexpect = true;
+    }
+    if (err_unexpect) {
+        Error("expected \"FILENAME\" or <FILENAME>", *err_locp);
+        EraseUntilNextLine(prevn);
+        return;
+    }
+    if (fname.empty()) {
+        Error("empty filename", *err_locp);
+        EraseUntilNextLine(prevn);
+        return;
+    }
+    // TODO: Deal with recursive include?
+    std::string found_path{
+                    FindHeader(fname, include_cur_path, *err_locp->fnamep)};
+    if (found_path.empty()) {
+        Error("'" + fname + "' file not found", *err_locp);
+        EraseUntilNextLine(prevn);
+        return;
+    }
+    // Check whether the file has already been read before.
+    auto iter = files_.find(found_path);
+    if (iter == files_.cend())
+        iter = files_.emplace(found_path, ReadFile(found_path)).first;
+    Scanner scanner{iter->first, iter->second};
+    auto tsp = scanner.Scan();
+    EraseExtraTokensIfHas();
+    ts_.ReplacePrevN(prevn, std::move(*tsp));
+}
+
 void Preprocessor::EraseUntilNextLine(int prevn) {
     int extra_count = prevn + 1;
     Token* tp = CurToken();
