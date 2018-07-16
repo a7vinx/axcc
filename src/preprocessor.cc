@@ -606,6 +606,81 @@ void Preprocessor::ParsePPInclude() {
     ts_.ReplacePrevN(prevn, std::move(*tsp));
 }
 
+void Preprocessor::ParsePPError() {
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    const SourceLocation& loc = LookAhead()->Loc();
+    std::string err_str{std::next(loc.linep, loc.column - 1),
+                        std::next(loc.linep, loc.line_len)};
+    Error(err_str, CurToken()->Loc());
+    EraseUntilNextLine(1);
+}
+
+void Preprocessor::ParsePPLine() {
+    if (!conditionsp_->CurState()) {
+        EraseUntilNextLine(1);
+        return;
+    }
+    // Save the original location information before expand tokens in current
+    // line.
+    Token* tp = ts_.LookAhead();
+    unsigned int orig_row = tp->Loc().row;
+    const std::string* orig_fnamep = tp->Loc().fnamep;
+    ExpandCurLine();
+    // Deal with the current preprocessor line number.
+    tp = Next();
+    if (tp->Tag() != TokenType::I_CONSTANT) {
+        Error("#line directive requires a positive integer argument", tp->Loc());
+        EraseUntilNextLine(2);
+        return;
+    }
+    std::string line_str{tp->TokenStr()};
+    for (auto c : line_str) {
+        if (c > '9' || c < '0') {
+            Error("#line directive requires a simple digit sequence", tp->Loc());
+            EraseUntilNextLine(2);
+            return;
+        }
+    }
+    int line_corr = 0;
+    try {
+        line_corr = std::stoi(line_str) - orig_row;
+    } catch (const std::out_of_range& e) {
+        Error("#line directive requires a positive integer argument", tp->Loc());
+        EraseUntilNextLine(2);
+        return;
+    }
+    // Deal with the current preprocessor file name.
+    const std::string* fnamep_corr{nullptr};
+    auto iter = line_corr_map_.find(*orig_fnamep);
+    if (iter != line_corr_map_.cend())
+        fnamep_corr = iter->second.second;
+    tp = LookAhead();
+    // Encoding prefix is not permitted.
+    if (tp->Tag() == TokenType::STRING && tp->TokenStr()[0] == '"') {
+        // Save this file name. Note that it is the address of the string
+        // constructed in the files_ map that should be taked.
+        std::string new_fname{UnwrapStr(tp->TokenStr())};
+        fnamep_corr = &(files_.emplace(new_fname, "").first->first);
+        Next();
+        EraseExtraTokensIfHas(3);
+    } else if (!IsNewlineToken(*tp) && !IsEndToken(*tp)) {
+        Error("invalid filename for #line directive", tp->Loc());
+        EraseUntilNextLine(2);
+        return;
+    } else {
+        EraseExtraTokensIfHas(2);
+    }
+    // Update line_corr_map_
+    if (iter != line_corr_map_.cend())
+        iter->second = {line_corr, fnamep_corr};
+    else
+        line_corr_map_.emplace(*orig_fnamep,
+                               std::make_pair(line_corr, fnamep_corr));
+}
+
 void Preprocessor::EraseUntilNextLine(int prevn) {
     int extra_count = prevn + 1;
     Token* tp = CurToken();
