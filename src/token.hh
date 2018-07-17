@@ -171,8 +171,8 @@ public:
     // The previous n tokens indicated by the parameter n include the current
     // token (i.e., if n = 1 only the current token will be erased).
     void ErasePrevN(int n);
-    void ReplacePrevN(int n, TokenSequence&& ts);
-    void ReplacePrevN(int n, const std::list<Token>& tl);
+    void ReplacePrevN(int n, TokenSequence&& ts, bool move_back = true);
+    void ReplacePrevN(int n, const std::list<Token>& tl, bool move_back = true);
 
 private:
     // Use pointers here to speed up the merging process of two token

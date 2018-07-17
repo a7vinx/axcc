@@ -204,20 +204,23 @@ void TokenSequence::ErasePrevN(int n) {
     token_list_.erase(std::prev(token_list_iter_, n), token_list_iter_);
 }
 
-void TokenSequence::ReplacePrevN(int n, TokenSequence&& ts) {
+void TokenSequence::ReplacePrevN(int n, TokenSequence&& ts, bool move_back) {
     ErasePrevN(n);
     std::move(ts.token_list_.begin(), ts.token_list_.end(),
               std::inserter(token_list_, token_list_iter_));
     // Set the iterator pointing to the first token in the inserted token list.
-    std::advance(token_list_iter_, -ts.token_list_.size());
+    if (move_back)
+        std::advance(token_list_iter_, -ts.token_list_.size());
 }
 
-void TokenSequence::ReplacePrevN(int n, const std::list<Token>& tl) {
+void TokenSequence::ReplacePrevN(int n, const std::list<Token>& tl,
+                                 bool move_back) {
     ErasePrevN(n);
     for (auto const& t : tl) {
         token_list_.insert(token_list_iter_, std::make_unique<Token>(t));
     }
-    std::advance(token_list_iter_, -tl.size());
+    if (move_back)
+        std::advance(token_list_iter_, -tl.size());
 }
 
 }
