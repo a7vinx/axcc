@@ -281,6 +281,8 @@ std::string Preprocessor::FindHeader(const std::string& fname,
 
 void Preprocessor::AddInitMacros() {
     // Macro __FILE__ and __LINE__ will be handled seperately.
+    AddMacro({"__FILE__", {}});
+    AddMacro({"__LINE__", {}});
     // Add time related predefined macro
     char time_buf[100];
     std::time_t now_t = std::time(nullptr);
