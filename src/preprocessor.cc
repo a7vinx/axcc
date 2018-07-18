@@ -683,6 +683,62 @@ void Preprocessor::ParsePPLine() {
                                std::make_pair(line_corr, fnamep_corr));
 }
 
+// The cursor of token sequence will be moved to the last token of current
+// macro. NEWLINE tokens interspersed in the macro will be copyed into the
+// returned list.
+std::list<Token> Preprocessor::GetCurMacroInst() {
+    const Macro* mp = GetMacro(CurToken()->TokenStr());
+    if (mp == nullptr)
+        return {};
+    std::list<Token> minst{*CurToken()};
+    if (mp->IsObjLike())
+        return minst;
+    // Deal with function-like macro
+    // Jump over these possible NEWLINE token.
+    Token* tp = LookAhead();
+    while (IsNewlineToken(*tp)) {
+        minst.push_back(*tp);
+        Next();
+        tp = LookAhead();
+    }
+    if (tp->Tag() != TokenType::LPAR)
+        return minst;
+    int unmatch_lpar = 0;
+    do {
+        tp = Next();
+        if (IsEndToken(*tp))
+            break;
+        if (tp->Tag() == TokenType::LPAR)
+            ++unmatch_lpar;
+        if (tp->Tag() == TokenType::RPAR)
+            --unmatch_lpar;
+        minst.push_back(*CurToken());
+    } while (unmatch_lpar != 0);
+    return minst;
+}
+
+void Preprocessor::ExpandCurMacro() {
+    std::list<Token> cur_macro = GetCurMacroInst();
+    int macro_size = cur_macro.size();
+    if (IsEndToken(*CurToken()))
+        ++macro_size;
+    // Do not need to re-traversal these expanded tokens.
+    if (macro_size != 0)
+        ts_.ReplacePrevN(macro_size, Expand(cur_macro), false);
+}
+
+// The NEWLINE token at the end of current line should be kept.
+void Preprocessor::ExpandCurLine() {
+    Token* tp = LookAhead();
+    std::list<Token> cur_line;
+    while (!IsNewlineToken(*tp) && !IsEndToken(*tp)) {
+        cur_line.push_back(*tp);
+        Next();
+        tp = LookAhead();
+    }
+    ts_.ReplacePrevN(cur_line.size(), Expand(cur_line));
+}
+
 void Preprocessor::EraseUntilNextLine(int prevn) {
     int extra_count = prevn + 1;
     Token* tp = CurToken();

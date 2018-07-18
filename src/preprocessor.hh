@@ -60,6 +60,13 @@ private:
     void ParsePPError();
     void ParsePPLine();
 
+    // Other helper functions
+    // Get the tokens of current macro from the token sequence.
+    std::list<Token> GetCurMacroInst();
+    // Expand current object-like macro or function-like macro.
+    void ExpandCurMacro();
+    // Expand tokens from the next one to the next NEWLINE token.
+    void ExpandCurLine();
     // Delete tokens from the current position to the next NEWLINE or END token,
     // plus the number of previous tokens specified by parameter prevn (does not
     // include the current token).
