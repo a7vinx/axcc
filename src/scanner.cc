@@ -149,7 +149,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
                 break;
             case '\\':
                 if (NextIs('u') || NextIs('U')) ScanIdent();
-                else MakeTokenInTS(TokenType::INVALID);
+                else MakeTokenInTS(TokenType::INVALID, "\\");
                 break;
             case '\'':
                 ScanCharConstant(); break;
@@ -174,7 +174,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
                          (curc >= 'A' && curc <= 'Z') || curc == '_')
                     ScanIdent();
                 else
-                    MakeTokenInTS(TokenType::INVALID);
+                    MakeTokenInTS(TokenType::INVALID, {curc});
         }
         curc = Next();
     }
@@ -374,7 +374,8 @@ void Scanner::ScanCharConstant() {
     if (curc != '\'') Next();
     while (!Try('\'')) {
         if (NextIs(0)) {
-            MakeTokenInTS(TokenType::INVALID, loc);
+            MakeTokenInTS(TokenType::INVALID,
+                          {begin_charp, std::next(cur_charp_, 1)}, loc);
             Error("missing terminating ' character", loc);
             return;
         }
@@ -398,7 +399,8 @@ void Scanner::ScanStrLiteral() {
     if (CurChar() != '\"') Next();
     while (!Try('\"')) {
         if (NextIs(0)) {
-            MakeTokenInTS(TokenType::INVALID, loc);
+            MakeTokenInTS(TokenType::INVALID,
+                          {begin_charp, std::next(cur_charp_, 1)}, loc);
             Error("missing terminating '\"' character", loc);
             return;
         }
