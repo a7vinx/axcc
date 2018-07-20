@@ -128,6 +128,16 @@ std::string LocStr(const SourceLocation& loc) {
     return locstr;
 }
 
+bool HasPreWhiteSpace(const SourceLocation& loc) {
+    // Check backslash-newline. std::prev() will never return an invalid
+    // iterator because it has a premise that the specified location will
+    // not be the first non-newline token's. The same goes for std::next().
+    if (loc.column == 1 && *std::prev(loc.linep, 2) != '\\')
+        return true;
+    return std::isspace(*std::next(loc.linep,
+                                   loc.column == 1 ? -3 : loc.column - 2));
+}
+
 std::string Token::TokenStr() const {
     if (token_str_.empty())
         return TypeToStr(tag_);

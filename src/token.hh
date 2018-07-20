@@ -23,6 +23,9 @@ struct SourceLocation {
 
 // Return string like "token.hh:19:36: source code"
 std::string LocStr(const SourceLocation& loc);
+// Check whether there is a white space in front of the specified location. Note
+// that the specified location can not be the first non-newline token's.
+bool HasPreWhiteSpace(const SourceLocation& loc);
 
 enum class TokenType {
     // Punctuators
