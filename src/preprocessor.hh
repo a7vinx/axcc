@@ -61,6 +61,13 @@ private:
     void ParsePPLine();
 
     // Other helper functions
+    // Dave Prosser's C macro expanding algorithm
+    std::list<Token> Expand(const std::list<Token>& is);
+    void Subst(const std::list<Token>& is, std::list<Token>& os,
+               const Token::HideSet& hideset,
+               const std::vector<std::string>& fp,
+               const std::vector<std::list<Token>>& ap,
+               std::shared_ptr<SourceLocation> locp);
     // Get the tokens of current macro from the token sequence.
     std::list<Token> GetCurMacroInst();
     // Expand current object-like macro or function-like macro.

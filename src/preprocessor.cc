@@ -1,6 +1,8 @@
 #include <ctime>
 #include <stack>
 #include <sstream>
+#include <algorithm>
+#include <cassert>
 
 #include "preprocessor.hh"
 #include "scanner.hh"
@@ -681,6 +683,269 @@ void Preprocessor::ParsePPLine() {
     else
         line_corr_map_.emplace(*orig_fnamep,
                                std::make_pair(line_corr, fnamep_corr));
+}
+
+namespace {
+
+// Get the tokens of current macro from the list of tokens. NEWLINE tokens will
+// not be copyed into the returned list.
+// Return a list with only one token, which should be the macro name token,
+// if no left parenthesis is following the macro name. Return an empty list if
+// other errors occur.
+std::list<Token> GetFuncMacroInst(const std::list<Token>& is,
+                                  std::list<Token>::const_iterator& cur_iter) {
+    std::list<Token> minst{*cur_iter};
+    const SourceLocation& loc = cur_iter->Loc();
+    // Jump over these possible NEWLINE token.
+    while (true) {
+        auto next_iter = std::next(cur_iter, 1);
+        if (next_iter == is.cend())
+            return minst;
+        if (!IsNewlineToken(*next_iter)) {
+            if (next_iter->Tag() != TokenType::LPAR)
+                return minst;
+            break;
+        }
+        ++cur_iter;
+    }
+    int unmatch_lpar = 0;
+    do {
+        ++cur_iter;
+        if (cur_iter == is.cend()) {
+            --cur_iter;
+            Error("unterminated function-like macro invocation", loc);
+            return {};
+        } else if (cur_iter->Tag() == TokenType::LPAR) {
+            ++unmatch_lpar;
+        } else if (cur_iter->Tag() == TokenType::RPAR) {
+            --unmatch_lpar;
+        } else if (IsNewlineToken(*cur_iter)) {
+            auto next_iter = std::next(cur_iter, 1);
+            if (next_iter != is.cend() && next_iter->Tag() == TokenType::SHARP) {
+                // Error then jump to next NEWLINE
+                Error("embedding directives within macro arguments is "
+                      "not supported", next_iter->Loc());
+                do {
+                    ++cur_iter;
+                } while (cur_iter != is.cend() && !IsNewlineToken(*cur_iter));
+                // Move back so two consecutive embedding directives can be
+                // reported correctly.
+                --cur_iter;
+            }
+            // Do not copy NEWLINE tokens into the returned list.
+            continue;
+        }
+        minst.push_back(*cur_iter);
+    } while (unmatch_lpar != 0);
+    return minst;
+}
+
+// Parse arguments of specified function-like macro. The instance of
+// function-like macro represented by parameter minst should be guaranteed
+// to be complete in form.
+// Return true if it succeed.
+bool ParseMacroArgs(const std::list<Token>& minst,
+                    std::vector<std::list<Token>>& ap,
+                    int arg_count, bool is_variadic) {
+    int arg_index = 0;
+    int unmatch_lpar = 0;
+    ap.emplace_back();
+    if (is_variadic)
+        --arg_count;
+    auto t_iter = minst.cbegin();
+    auto end_iter = std::prev(minst.cend(), 1);
+    std::advance(t_iter, 2);
+    for (; t_iter != end_iter; ++t_iter) {
+        if (t_iter->Tag() != TokenType::COMMA || unmatch_lpar != 0) {
+            if (t_iter->Tag() == TokenType::LPAR)
+                ++unmatch_lpar;
+            else if (t_iter->Tag() == TokenType::RPAR)
+                --unmatch_lpar;
+            ap[arg_index].push_back(*t_iter);
+        } else if (arg_index + 1 >= arg_count && !is_variadic) {
+            Error("too many arguments provided to function-like macro"
+                  "invocation", t_iter->Loc());
+            return false;
+        } else if (arg_index + 1 < arg_count ||
+                   (arg_index + 1 == arg_count && is_variadic)) {
+            ++arg_index;
+            ap.emplace_back();
+        } else {
+            ap[arg_index].push_back(*t_iter);
+        }
+    }
+    if (arg_index + 1 < arg_count) {
+        Error("too few arguments provided to function-like macro invocation",
+              minst.cbegin()->Loc());
+        return false;
+    }
+    return true;
+}
+
+Token Stringize(const std::list<Token>& tl) {
+    std::string token_str;
+    auto iter = tl.cbegin();
+    if (iter == tl.cend())
+        return {TokenType::STRING, ""};
+    token_str += iter->TokenStr();
+    ++iter;
+    for (; iter != tl.cend(); ++iter) {
+        // C11 6.10.3.2: Each occurrence of white space between the argument’s
+        // preprocessing tokens becomes a single space character in the
+        // character string literal.
+        if (HasPreWhiteSpace(iter->Loc()))
+            token_str += ' ';
+        token_str += iter->TokenStr();
+    }
+    token_str = WrapStr(token_str);
+    return {TokenType::STRING, token_str};
+}
+
+void Glue(std::list<Token>& lhs, const std::list<Token>& rhs,
+          const SourceLocation& err_loc) {
+    auto l_iter = lhs.rbegin();
+    auto r_iter = rhs.cbegin();
+    assert(l_iter != lhs.rend() && r_iter != rhs.cend());
+    std::string glue_str{l_iter->TokenStr() + r_iter->TokenStr()};
+    Scanner scanner{"", glue_str};
+    auto tsp = scanner.Scan();
+    Token* tp = tsp->Begin();
+    lhs.pop_back();
+    lhs.push_back(*tp);
+    tp = tsp->Next();
+    if (!IsEndToken(*tp)) {
+        Error("pasting formed '"+ glue_str + "', an invalid preprocessing token",
+              err_loc);
+        // Still keep these tokens.
+        do {
+            lhs.push_back(*tp);
+            tp = tsp->Next();
+        } while (!IsEndToken(*tp));
+    }
+    lhs.insert(lhs.cend(), std::next(rhs.cbegin(), 1), rhs.cend());
+}
+
+template<typename T>
+bool VectorHas(std::vector<T> vec, const T& value, int& pos) {
+    auto iter = std::find(vec.cbegin(), vec.cend(), value);
+    if (iter == vec.cend())
+        return false;
+    pos = std::distance(vec.cbegin(), iter);
+    return true;
+}
+
+} // unnamed namespace
+
+// The input token list will never contain the END token but may contain
+// NEWLINE token which appear only in a instance of function-like macro.
+std::list<Token> Preprocessor::Expand(const std::list<Token>& is) {
+    std::list<Token> os;
+    for (auto t_iter = is.cbegin(); t_iter != is.cend(); ++t_iter) {
+        const Token& cur_t = *t_iter;
+        if (!IsIdentOrKeyword(cur_t) || cur_t.HSHas(cur_t.TokenStr()) ||
+            !HasMacro(cur_t.TokenStr())) {
+            os.push_back(cur_t);
+        } else {
+            // Deal with __FILE__ and __LINE__ macro.
+            if (cur_t.TokenStr() == "__FILE__") {
+                os.push_back({TokenType::STRING,
+                              WrapStr(*cur_t.Loc().fnamep),
+                              cur_t.LocPtr()});
+            } else if (cur_t.TokenStr() == "__LINE__") {
+                os.push_back({TokenType::I_CONSTANT,
+                              std::to_string(cur_t.Loc().row),
+                              cur_t.LocPtr()});
+            } else {
+                // Deal with other macros.
+                std::list<Token> subst_os;
+                Token::HideSet hs{cur_t.GetHideSet()};
+                const Macro* mp = GetMacro(cur_t.TokenStr());
+                auto locp = cur_t.LocPtr();
+                if (mp->IsObjLike()) {
+                    Subst(mp->Repl(), subst_os,
+                          HSUnion(hs, {cur_t.TokenStr()}), {}, {}, locp);
+                } else {
+                    std::list<Token> minst = GetFuncMacroInst(is, t_iter);
+                    if (minst.empty())
+                        continue;
+                    if (minst.size() == 1) {
+                        os.push_back(*minst.cbegin());
+                        continue;
+                    }
+                    const std::vector<std::string>& fp{mp->Params()};
+                    std::vector<std::list<Token>> ap;
+                    if (ParseMacroArgs(minst, ap, fp.size(), mp->IsVariadic())) {
+                        // After calling GetFuncMacroInst, t_iter should point
+                        // to the end of current function-like macro, which
+                        // should be right parenthesis.
+                        hs = HSIntersect(hs, t_iter->GetHideSet());
+                        hs = HSUnion(hs, {cur_t.TokenStr()});
+                        Subst(mp->Repl(), subst_os, hs, fp, ap, locp);
+                    } else {
+                        os.splice(os.cend(), minst);
+                        continue;
+                    }
+                }
+                os.splice(os.cend(), Expand(subst_os));
+            }
+        }
+    }
+    return os;
+}
+
+void Preprocessor::Subst(const std::list<Token>& is, std::list<Token>& os,
+                         const Token::HideSet& hideset,
+                         const std::vector<std::string>& fp,
+                         const std::vector<std::list<Token>>& ap,
+                         std::shared_ptr<SourceLocation> locp) {
+    int pos;
+    for (auto t_iter = is.cbegin(); t_iter != is.cend(); ++t_iter) {
+        const Token& cur_t = *t_iter;
+        auto next_iter = std::next(t_iter, 1);
+        if (t_iter != is.cend()) {
+            const Token& next_t = *next_iter;
+            ++t_iter;
+            if (cur_t.Tag() == TokenType::SHARP &&
+                VectorHas(fp, next_t.TokenStr(), pos)) {
+                os.push_back(Stringize(ap[pos]));
+                continue;
+            } else if (cur_t.Tag() == TokenType::DSHARP &&
+                       VectorHas(fp, next_t.TokenStr(), pos)) {
+                if (!ap[pos].empty())
+                    Glue(os, ap[pos], *locp);
+                continue;
+            } else if (cur_t.Tag() == TokenType::DSHARP) {
+                Glue(os, {next_t}, *locp);
+                continue;
+            } else if (VectorHas(fp, cur_t.TokenStr(), pos) &&
+                       next_t.Tag() == TokenType::DSHARP) {
+                if (ap[pos].empty()) {
+                    auto next2_iter = std::next(next_iter, 1);
+                    if (next2_iter == is.cend())
+                        break;
+                    const Token& next2_t = *next2_iter;
+                    if (VectorHas(fp, next2_t.TokenStr(), pos)) {
+                        os.insert(os.cend(), ap[pos].cbegin(), ap[pos].cend());
+                        ++t_iter;
+                    }
+                } else {
+                    --t_iter;
+                    os.insert(os.cend(), ap[pos].cbegin(), ap[pos].cend());
+                }
+                continue;
+            }
+            --t_iter;
+        }
+        if (VectorHas(fp, cur_t.TokenStr(), pos))
+            os.splice(os.cend(), Expand(ap[pos]));
+        else
+            os.push_back(cur_t);
+    }
+    // Add hideset to the tokens in os and set location pointer
+    for (auto& t : os) {
+        t.HSAdd(hideset);
+        t.SetLocPtr(locp);
+    }
 }
 
 // The cursor of token sequence will be moved to the last token of current
