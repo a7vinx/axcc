@@ -28,6 +28,7 @@ public:
 private:
     class Macro;
     class PPConditions;
+    friend class PreprocessorTest;
 
     // The adding action will always be performed unless the new definition is
     // effectively the same as the old one.
