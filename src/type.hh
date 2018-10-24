@@ -82,5 +82,58 @@ private:
     std::shared_ptr<Type> typep_{};
 };
 
+class VoidType : public Type {
+public:
+    // C11 6.2.5p19: The void type comprises an empty set of values;
+    // it is an incomplete object type that cannot be completed.
+    VoidType() : Type{TypeKind::kVoid, false} {}
+    virtual bool IsCompatible(const Type& other) const override;
+};
+
+enum class ArithTyKind : unsigned char {
+    kDefault,
+    kBool,
+    kChar,
+    kInt,
+    kFloat,
+    kDouble
+};
+
+enum class ArithTySize : unsigned char {
+    kDefault,
+    kShort,
+    kLong,
+    kLLong
+};
+
+enum class ArithTySign : unsigned char {
+    kDefault,
+    kSigned,
+    kUnsigned
+};
+
+class ArithType : public Type {
+public:
+    static const std::size_t kCharWidth;
+    static const std::size_t kShortWidth;
+    static const std::size_t kIntWidth;
+    static const std::size_t kLongWidth;
+
+    ArithType(const ArithTyKind& kind,
+              const ArithTySize& size = ArithTySize::kDefault,
+              const ArithTySign& sign = ArithTySign::kDefault);
+    virtual bool IsCompatible(const Type& other) const override;
+    ArithTyKind ATyKind() const { return aty_kind_; }
+    ArithTySize ATySize() const { return aty_size_; }
+    ArithTySign ATySign() const { return aty_sign_; }
+    // We add conversion ranks for floating types in order to simplify the
+    // handling of some type conversions.
+    int ConvRank() const;
+private:
+    ArithTyKind aty_kind_;
+    ArithTySize aty_size_;
+    ArithTySign aty_sign_;
+};
+
 }
 #endif
