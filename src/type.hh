@@ -135,5 +135,37 @@ private:
     ArithTySign aty_sign_;
 };
 
+class PointerType : public Type {
+public:
+    PointerType(const QualType& pointee_qty)
+        : Type{TypeKind::kPointer, true,
+               ArithType::kLongWidth, ArithType::kLongWidth},
+          pointee_qty_{pointee_qty} {}
+    virtual bool IsCompatible(const Type& other) const override;
+    QualType PointeeQTy() const { return pointee_qty_; }
+private:
+    QualType pointee_qty_;
+};
+
+class ArrayType : public Type {
+public:
+    ArrayType(const QualType& elem_qty)
+        : Type{TypeKind::kArray, false, 0, elem_qty->Align()},
+          elem_qty_{elem_qty} {}
+    ArrayType(const QualType& elem_qty, std::size_t arr_size)
+        : Type{TypeKind::kArray, true,
+               elem_qty->Size() * arr_size, elem_qty->Align()},
+          elem_qty_{elem_qty},
+          arr_size_{arr_size} {}
+    virtual bool IsCompatible(const Type& other) const override;
+    QualType ElemQType() const { return elem_qty_; }
+    // Check type completeness before using the size of the array.
+    std::size_t ArrSize() const { return arr_size_; }
+    void SetArrSize(std::size_t arr_size);
+private:
+    QualType elem_qty_;
+    std::size_t arr_size_{0};
+};
+
 }
 #endif

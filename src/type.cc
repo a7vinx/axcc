@@ -84,4 +84,26 @@ int ArithType::ConvRank() const {
     return rank;
 }
 
+bool PointerType::IsCompatible(const Type& other) const {
+    if (!IsPointerTy(other))
+        return false;
+    const auto& other_ptrty = TypeConv<PointerType>(other);
+    return pointee_qty_.IsCompatible(other_ptrty.pointee_qty_);
+}
+
+void ArrayType::SetArrSize(std::size_t arr_size) {
+    arr_size_ = arr_size;
+    SetSize(arr_size * elem_qty_->Size());
+    SetComplete();
+}
+
+bool ArrayType::IsCompatible(const Type& other) const {
+    if (!IsArrayTy(other))
+        return false;
+    const auto& other_arrty = TypeConv<ArrayType>(other);
+    return (elem_qty_.IsCompatible(other_arrty.elem_qty_) &&
+            (IsComplete() != other_arrty.IsComplete() ||
+             arr_size_ == other_arrty.arr_size_));
+}
+
 }
