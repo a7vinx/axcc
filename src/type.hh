@@ -13,8 +13,7 @@ enum class TypeKind : unsigned char {
     kArray,
     kFunc,
     kStruct,
-    kUnion,
-    kBitField
+    kUnion
 };
 
 class Type {
