@@ -3,8 +3,13 @@
 
 #include <memory>
 #include <cstdlib>
+#include <vector>
 
 namespace axcc {
+
+// Forward Declarations
+class Object;
+using ObjectPtr = std::shared_ptr<Object>;
 
 enum class TypeKind : unsigned char {
     kVoid,
@@ -164,6 +169,32 @@ public:
 private:
     QualType elem_qty_;
     std::size_t arr_size_{0};
+};
+
+class FuncType : public Type {
+public:
+    FuncType(const QualType& ret_qty, const std::vector<ObjectPtr>& params)
+        : Type{TypeKind::kFunc, false},
+          ret_qty_{ret_qty}, params_{params} {}
+    virtual bool IsCompatible(const Type& other) const override;
+    bool IsInline() const { return func_specs_ & kFSInline; }
+    bool IsNoreturn() const { return func_specs_ & kFSNoreturn; }
+    void AddInline() { func_specs_ |= kFSInline; }
+    void AddNoreturn() { func_specs_ |= kFSNoreturn; }
+    QualType RetQType() const { return ret_qty_; }
+    std::vector<ObjectPtr> Params() const { return params_; }
+    void UpdateParams(const std::vector<ObjectPtr>& params) { params_ = params; }
+    // Use the type completeness atrribute to check function redefinition.
+    void EncounterDef() { SetComplete(); }
+    bool HasDef() const { return IsComplete(); }
+private:
+    enum FuncSpecFlags : unsigned char {
+        kFSInline = 1 << 0,
+        kFSNoreturn = 1 << 1,
+    };
+    QualType ret_qty_;
+    std::vector<ObjectPtr> params_;
+    unsigned char func_specs_{0};
 };
 
 }

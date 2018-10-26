@@ -1,6 +1,7 @@
 #include <cassert>
 
 #include "type.hh"
+#include "ast.hh"
 
 namespace axcc {
 
@@ -104,6 +105,24 @@ bool ArrayType::IsCompatible(const Type& other) const {
     return (elem_qty_.IsCompatible(other_arrty.elem_qty_) &&
             (IsComplete() != other_arrty.IsComplete() ||
              arr_size_ == other_arrty.arr_size_));
+}
+
+bool FuncType::IsCompatible(const Type& other) const {
+    if (!IsFuncTy(other))
+        return false;
+    const auto& other_functy = TypeConv<FuncType>(other);
+    if (!ret_qty_->IsCompatible(other_functy.ret_qty_) ||
+        params_.size() != other_functy.params_.size())
+        return false;
+    auto self_piter = params_.cbegin();
+    auto other_piter = other_functy.params_.cbegin();
+    while (self_piter != params_.cend()) {
+        if (!(*self_piter)->QType().IsCompatible((*other_piter)->QType()))
+            return false;
+        ++self_piter;
+        ++other_piter;
+    }
+    return true;
 }
 
 }
