@@ -43,13 +43,12 @@ private:
     // Return the distance from current position to next newline.
     unsigned int FindNextNewline() const;
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str,
-                       const SourceLocation& loc);
-    void MakeTokenInTS(const TokenType& tag, const SourceLocation& loc);
+                       const SourceLoc& loc);
+    void MakeTokenInTS(const TokenType& tag, const SourceLoc& loc);
     void MakeTokenInTS(const TokenType& tag, const std::string& token_str);
     void MakeTokenInTS(const TokenType& tag);
-    SourceLocation SaveCurLoc() {
-        return {&fname_, cur_row_, cur_column_,
-                cur_linep_, cur_line_len_, false}; }
+    SourceLoc SaveCurLoc() { return {&fname_, cur_row_, cur_column_,
+                                     cur_linep_, cur_line_len_, false}; }
 
     void SkipComment();
     void ScanNumConstant();
@@ -57,7 +56,7 @@ private:
     void ScanStrLiteral();
     void ScanIdent();
 
-    // Use reference for file name and content string because SourceLocation
+    // Use reference for file name and content string because SourceLoc
     // object which we have to create when scanning has pointer and iterator
     // members related to these string.
     const std::string& fname_;

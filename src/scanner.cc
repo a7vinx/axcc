@@ -280,31 +280,30 @@ unsigned int Scanner::FindNextNewline() const {
 }
 
 void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str,
-                            const SourceLocation& loc) {
-    tsp_->EmplaceBack(tag, token_str, std::make_shared<SourceLocation>(loc));
+                            const SourceLoc& loc) {
+    tsp_->EmplaceBack(tag, token_str, std::make_shared<SourceLoc>(loc));
 }
 
-void Scanner::MakeTokenInTS(const TokenType& tag, const SourceLocation& loc) {
-    tsp_->EmplaceBack(tag, std::make_shared<SourceLocation>(loc));
+void Scanner::MakeTokenInTS(const TokenType& tag, const SourceLoc& loc) {
+    tsp_->EmplaceBack(tag, std::make_shared<SourceLoc>(loc));
 }
 
 void Scanner::MakeTokenInTS(const TokenType& tag, const std::string& token_str) {
     tsp_->EmplaceBack(tag, token_str,
-                      std::make_shared<SourceLocation>(
-                               SourceLocation{&fname_, cur_row_, cur_column_,
-                                              cur_linep_, cur_line_len_, false}));
+                      std::make_shared<SourceLoc>(
+                               SourceLoc{&fname_, cur_row_, cur_column_,
+                                         cur_linep_, cur_line_len_, false}));
 }
 
 void Scanner::MakeTokenInTS(const TokenType& tag) {
-    tsp_->EmplaceBack(tag, std::make_shared<SourceLocation>(
-                                    SourceLocation{
-                                        &fname_, cur_row_, cur_column_,
-                                        cur_linep_, cur_line_len_, false}));
+    tsp_->EmplaceBack(tag, std::make_shared<SourceLoc>(
+                                    SourceLoc{&fname_, cur_row_, cur_column_,
+                                              cur_linep_, cur_line_len_, false}));
 }
 
 void Scanner::SkipComment() {
     assert(CurChar() == '/' && (NextIs('/') || NextIs('*')));
-    SourceLocation loc{SaveCurLoc()};
+    SourceLoc loc{SaveCurLoc()};
     if (Try('/')) {
         // The '\n' should not be "eaten" because we need to generate the
         // NEWLINE token after the comment.
@@ -326,7 +325,7 @@ void Scanner::SkipComment() {
 // F_CONSTANT.
 void Scanner::ScanNumConstant() {
     char curc = CurChar();
-    SourceLocation loc{SaveCurLoc()};
+    SourceLoc loc{SaveCurLoc()};
     TokenType tag = TokenType::I_CONSTANT;
     auto begin_charp = cur_charp_;
     bool has_invalid = false;
@@ -366,7 +365,7 @@ void Scanner::ScanNumConstant() {
 
 void Scanner::ScanCharConstant() {
     char curc = CurChar();
-    SourceLocation loc{SaveCurLoc()};
+    SourceLoc loc{SaveCurLoc()};
     auto begin_charp = cur_charp_;
 
     assert(((curc == 'u' || curc == 'U' || curc == 'L') && NextIs('\'')) ||
@@ -389,7 +388,7 @@ void Scanner::ScanCharConstant() {
 
 void Scanner::ScanStrLiteral() {
     char curc = CurChar();
-    SourceLocation loc{SaveCurLoc()};
+    SourceLoc loc{SaveCurLoc()};
     auto begin_charp = cur_charp_;
 
     assert((curc == 'u' && NextIs('8') && LookAheadN(2) == '\"') ||
@@ -414,7 +413,7 @@ void Scanner::ScanStrLiteral() {
 
 void Scanner::ScanIdent() {
     auto begin_charp = cur_charp_;
-    SourceLocation loc{SaveCurLoc()};
+    SourceLoc loc{SaveCurLoc()};
     char peekc;
 
     while ((peekc = LookAhead()) != 0) {

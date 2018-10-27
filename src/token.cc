@@ -108,7 +108,7 @@ std::string Token::TypeToStr(const TokenType& tag) {
     return {};
 }
 
-std::string LocStr(const SourceLocation& loc) {
+std::string LocStr(const SourceLoc& loc) {
     std::string locstr;
     locstr += *loc.fnamep;
     locstr += ":";
@@ -129,7 +129,7 @@ std::string LocStr(const SourceLocation& loc) {
     return locstr;
 }
 
-bool HasPreWhiteSpace(const SourceLocation& loc) {
+bool HasPreWhiteSpace(const SourceLoc& loc) {
     // Check backslash-newline. std::prev() will never return an invalid
     // iterator because it has a premise that the specified location will
     // not be the first non-newline token's. The same goes for std::next().

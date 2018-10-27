@@ -11,7 +11,7 @@
 
 namespace axcc {
 
-struct SourceLocation {
+struct SourceLoc {
     const std::string* fnamep;
     unsigned int row;
     unsigned int column;
@@ -21,10 +21,10 @@ struct SourceLocation {
 };
 
 // Return string like "token.hh:19:36: source code"
-std::string LocStr(const SourceLocation& loc);
+std::string LocStr(const SourceLoc& loc);
 // Check whether there is a white space in front of the specified location. Note
 // that the specified location can not be the first non-newline token's.
-bool HasPreWhiteSpace(const SourceLocation& loc);
+bool HasPreWhiteSpace(const SourceLoc& loc);
 
 enum class TokenType {
     // Punctuators
@@ -79,10 +79,10 @@ public:
     using HideSet = std::set<std::string>;
 
     Token(const TokenType& tag, const std::string& token_str,
-          const std::shared_ptr<SourceLocation>& locp)
+          const std::shared_ptr<SourceLoc>& locp)
         : tag_{tag}, token_str_{token_str}, locp_{locp} {}
     Token(const TokenType& tag,
-          const std::shared_ptr<SourceLocation>& locp)
+          const std::shared_ptr<SourceLoc>& locp)
         : tag_{tag}, locp_{locp} {}
     // No loction pointer version for constructing the token whose location
     // pointer is meaningless.
@@ -97,9 +97,9 @@ public:
 
     TokenType Tag() const { return tag_; }
     std::string TokenStr() const;
-    const SourceLocation& Loc() const { return *locp_; }
-    std::shared_ptr<SourceLocation> LocPtr() const { return locp_; }
-    void SetLocPtr(const std::shared_ptr<SourceLocation>& locp) {
+    const SourceLoc& Loc() const { return *locp_; }
+    std::shared_ptr<SourceLoc> LocPtr() const { return locp_; }
+    void SetLocPtr(const std::shared_ptr<SourceLoc>& locp) {
         locp_ = locp; }
     void HSAdd(const std::string& token_str) {
         hs_.insert(token_str_); }
@@ -115,7 +115,7 @@ private:
     const TokenType tag_;
     // Integer and float constant is stored as string for now.
     const std::string token_str_{};
-    std::shared_ptr<SourceLocation> locp_{};
+    std::shared_ptr<SourceLoc> locp_{};
     HideSet hs_{};
     static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };
@@ -157,8 +157,8 @@ public:
                         std::make_unique<Token>(std::forward<Args>(args)...)); }
     void PushBack(const Token& t) {
         token_list_.push_back(std::make_unique<Token>(t)); }
-    void SetEndLoc(const SourceLocation& loc) {
-        end_token_.SetLocPtr(std::make_shared<SourceLocation>(loc)); }
+    void SetEndLoc(const SourceLoc& loc) {
+        end_token_.SetLocPtr(std::make_shared<SourceLoc>(loc)); }
 
     // Helper functions for iterating token sequence.
     // All the following functions can only be used after Begin() has been

@@ -20,12 +20,12 @@ inline void Warning(const std::string& msg) {
     std::cerr << COLOR_YELLOW << "Warning: " << COLOR_RESET << msg << std::endl;
 }
 
-inline void Error(const std::string& msg, const SourceLocation& loc) {
+inline void Error(const std::string& msg, const SourceLoc& loc) {
     std::cerr << COLOR_RED << "Error: " << COLOR_RESET << msg << '\n';
     std::cerr << LocStr(loc) << std::endl;
 }
 
-inline void Warning(const std::string& msg, const SourceLocation& loc) {
+inline void Warning(const std::string& msg, const SourceLoc& loc) {
     std::cerr << COLOR_YELLOW << "Warning: " << COLOR_RESET << msg << '\n';
     std::cerr << LocStr(loc) << std::endl;
 }

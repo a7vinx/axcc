@@ -56,7 +56,7 @@ public:
     PPConditions& operator=(PPConditions&&) = default;
     virtual ~PPConditions() = default;
 
-    void CondBegin(bool state, const SourceLocation& loc) {
+    void CondBegin(bool state, const SourceLoc& loc) {
         conditions_.push({state, true, loc}); }
     void CondEnd() { conditions_.pop(); }
     bool HasNextElse() const { return conditions_.top().has_next_else; }
@@ -68,7 +68,7 @@ public:
         return conditions_.empty() || conditions_.top().state; }
     void SetCurState(bool state) { conditions_.top().state = state; }
     bool IsEmpty() const { return conditions_.empty(); }
-    SourceLocation BeginLoc() const { return conditions_.top().begin_loc; }
+    SourceLoc BeginLoc() const { return conditions_.top().begin_loc; }
 
 private:
     struct PPCondition {
@@ -76,7 +76,7 @@ private:
         // processed.
         bool state;
         bool has_next_else;
-        const SourceLocation begin_loc;
+        const SourceLoc begin_loc;
     };
     std::stack<PPCondition> conditions_{};
 };
@@ -404,7 +404,7 @@ void Preprocessor::ParsePPDefine() {
         return;
     }
     Token* tp = Next();
-    const SourceLocation& macro_loc = tp->Loc();
+    const SourceLoc& macro_loc = tp->Loc();
     if (!IsIdentOrKeyword(*tp)) {
         Error("macro name must be an identifier", macro_loc);
         EraseUntilNextLine(2);
@@ -557,7 +557,7 @@ void Preprocessor::ParsePPInclude() {
     std::string fname;
     bool include_cur_path = false;
     bool err_unexpect = false;
-    const SourceLocation* err_locp = &tp->Loc();
+    const SourceLoc* err_locp = &tp->Loc();
     int prevn = 2;
     if (tp->Tag() == TokenType::STRING) {
         fname = tp->TokenStr();
@@ -615,7 +615,7 @@ void Preprocessor::ParsePPError() {
         EraseUntilNextLine(1);
         return;
     }
-    const SourceLocation& loc = LookAhead()->Loc();
+    const SourceLoc& loc = LookAhead()->Loc();
     std::string err_str{std::next(loc.linep, loc.column - 1),
                         std::next(loc.linep, loc.line_len)};
     Error(err_str, CurToken()->Loc());
@@ -695,7 +695,7 @@ namespace {
 std::list<Token> GetFuncMacroInst(const std::list<Token>& is,
                                   std::list<Token>::const_iterator& cur_iter) {
     std::list<Token> minst{*cur_iter};
-    const SourceLocation& loc = cur_iter->Loc();
+    const SourceLoc& loc = cur_iter->Loc();
     // Jump over these possible NEWLINE token.
     while (true) {
         auto next_iter = std::next(cur_iter, 1);
@@ -802,7 +802,7 @@ Token Stringize(const std::list<Token>& tl) {
 }
 
 void Glue(std::list<Token>& lhs, const std::list<Token>& rhs,
-          const SourceLocation& err_loc) {
+          const SourceLoc& err_loc) {
     auto l_iter = lhs.rbegin();
     auto r_iter = rhs.cbegin();
     assert(l_iter != lhs.rend() && r_iter != rhs.cend());
@@ -897,7 +897,7 @@ void Preprocessor::Subst(const std::list<Token>& is, std::list<Token>& os,
                          const Token::HideSet& hideset,
                          const std::vector<std::string>& fp,
                          const std::vector<std::list<Token>>& ap,
-                         std::shared_ptr<SourceLocation> locp) {
+                         std::shared_ptr<SourceLoc> locp) {
     int pos;
     for (auto t_iter = is.cbegin(); t_iter != is.cend(); ++t_iter) {
         const Token& cur_t = *t_iter;
@@ -1022,7 +1022,7 @@ void Preprocessor::EraseExtraTokensIfHas(int prevn) {
 }
 
 Token* Preprocessor::PPLineCorrect(Token* tp) {
-    SourceLocation& loc = *tp->LocPtr();
+    SourceLoc& loc = *tp->LocPtr();
     // Each token should be processed only once.
     if (!loc.ppline_corrected) {
         auto iter = line_corr_map_.find(*loc.fnamep);
