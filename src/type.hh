@@ -4,6 +4,8 @@
 #include <memory>
 #include <cstdlib>
 #include <vector>
+#include <string>
+#include <map>
 
 namespace axcc {
 
@@ -195,6 +197,20 @@ private:
     QualType ret_qty_;
     std::vector<ObjectPtr> params_;
     unsigned char func_specs_{0};
+};
+
+class RecordType : public Type {
+public:
+    RecordType(const std::vector<ObjectPtr>& members, bool is_struct);
+    virtual bool IsCompatible(const Type& other) const override;
+    // Return a null pointer if no such member.
+    ObjectPtr GetMember(const std::string& name) const;
+private:
+    void StructTypeCtor(const std::vector<ObjectPtr>& members);
+    void UnionTypeCtor(const std::vector<ObjectPtr>& members);
+    // The order of members should be remembered.
+    std::vector<ObjectPtr> members_{};
+    std::map<std::string, ObjectPtr> members_map_{};
 };
 
 }
