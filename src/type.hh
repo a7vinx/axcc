@@ -64,6 +64,7 @@ public:
     void RmConst() { qualifiers_ &= ~kQualConst; }
     void RmVolatile() { qualifiers_ &= ~kQualVolatile; }
     void RmRestrict() { qualifiers_ &= ~kQualRestrict; }
+    void LoseAllQuals() { qualifiers_ = 0; }
     // Helper functions for the raw type.
     bool HasRawType() const { return typep_.get() != nullptr; }
     void SetRawType(const std::shared_ptr<Type>& typep) { typep_ = typep; }
