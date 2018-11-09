@@ -216,5 +216,56 @@ private:
     std::map<std::string, ObjectPtr> members_map_{};
 };
 
+template<typename T>
+T& TypeConv(Type& type) {
+    return static_cast<T&>(type);
+}
+
+template<typename T>
+const T& TypeConv(const Type& type) {
+    return static_cast<const T&>(type);
+}
+
+// Helper functions for determining type categories.
+template<TypeKind kind>
+bool IsTypeKind(const Type& type) {
+    return type.Kind() == kind;
+}
+static constexpr auto& IsVoidTy = IsTypeKind<TypeKind::kVoid>;
+static constexpr auto& IsArithTy = IsTypeKind<TypeKind::kArith>;
+static constexpr auto& IsPointerTy = IsTypeKind<TypeKind::kPointer>;
+static constexpr auto& IsArrayTy = IsTypeKind<TypeKind::kArray>;
+static constexpr auto& IsFuncTy = IsTypeKind<TypeKind::kFunc>;
+static constexpr auto& IsStructTy = IsTypeKind<TypeKind::kStruct>;
+static constexpr auto& IsUnionTy = IsTypeKind<TypeKind::kUnion>;
+
+inline bool IsRecordTy(const Type& type) {
+    return IsStructTy(type) || IsUnionTy(type);
+}
+inline bool IsScalarTy(const Type& type) {
+    return IsArithTy(type) || IsPointerTy(type);
+}
+inline bool IsIntegerTy(const Type& type) {
+    return IsArithTy(type) ? IsIntegerTy(TypeConv<ArithType>(type)) : false;
+}
+inline bool IsIntegerTy(const ArithType& arith_type) {
+    ArithTyKind arithty_kind = arith_type.ATyKind();
+    return (arithty_kind == ArithTyKind::kBool ||
+            arithty_kind == ArithTyKind::kChar ||
+            arithty_kind == ArithTyKind::kInt);
+}
+inline bool IsFloatingTy(const Type& type) {
+    return !IsIntegerTy(type);
+}
+inline bool IsFloatingTy(const ArithType& arith_type) {
+    return !IsIntegerTy(arith_type);
+}
+inline bool IsSignedTy(const Type& type) {
+    return IsArithTy(type) ? IsSignedTy(TypeConv<ArithType>(type)) : false;
+}
+inline bool IsSignedTy(const ArithType& arith_type) {
+    return arith_type.ATySign() == ArithTySign::kSigned;
+}
+
 }
 #endif
