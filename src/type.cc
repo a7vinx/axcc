@@ -1,4 +1,4 @@
-#include <cassert>
+#include <algorithm>
 
 #include "type.hh"
 #include "ast.hh"

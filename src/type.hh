@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <cassert>
 
 namespace axcc {
 
@@ -69,9 +70,10 @@ public:
     bool HasRawType() const { return typep_.get() != nullptr; }
     void SetRawType(const std::shared_ptr<Type>& typep) { typep_ = typep; }
     void ResetRawType() { typep_.reset(); }
-    Type& RawType() const { return *typep_; }
+    Type& RawType() const { assert(typep_.get() != nullptr); return *typep_; }
     // Make QualType behave like a pointer.
-    Type* operator->() const { return typep_.get(); }
+    Type* operator->() const {
+        assert(typep_.get() != nullptr); return typep_.get(); }
     Type& operator*() const { return RawType(); }
     // Allow the implicit conversion to const Type&
     operator const Type&() const { return RawType(); }
