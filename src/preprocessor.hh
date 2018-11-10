@@ -68,7 +68,7 @@ private:
                const Token::HideSet& hideset,
                const std::vector<std::string>& fp,
                const std::vector<std::list<Token>>& ap,
-               std::shared_ptr<SourceLoc> locp);
+               SourceLocPtr locp);
     // Get the tokens of current macro from the token sequence.
     std::list<Token> GetCurMacroInst();
     // Expand current object-like macro or function-like macro.

@@ -20,6 +20,8 @@ struct SourceLoc {
     bool ppline_corrected;
 };
 
+using SourceLocPtr = std::shared_ptr<SourceLoc>;
+
 // Return string like "token.hh:19:36: source code"
 std::string LocStr(const SourceLoc& loc);
 // Check whether there is a white space in front of the specified location. Note
@@ -79,10 +81,10 @@ public:
     using HideSet = std::set<std::string>;
 
     Token(const TokenType& tag, const std::string& token_str,
-          const std::shared_ptr<SourceLoc>& locp)
+          const SourceLocPtr& locp)
         : tag_{tag}, token_str_{token_str}, locp_{locp} {}
     Token(const TokenType& tag,
-          const std::shared_ptr<SourceLoc>& locp)
+          const SourceLocPtr& locp)
         : tag_{tag}, locp_{locp} {}
     // No loction pointer version for constructing the token whose location
     // pointer is meaningless.
@@ -98,9 +100,8 @@ public:
     TokenType Tag() const { return tag_; }
     std::string TokenStr() const;
     const SourceLoc& Loc() const { return *locp_; }
-    std::shared_ptr<SourceLoc> LocPtr() const { return locp_; }
-    void SetLocPtr(const std::shared_ptr<SourceLoc>& locp) {
-        locp_ = locp; }
+    SourceLocPtr LocPtr() const { return locp_; }
+    void SetLocPtr(const SourceLocPtr& locp) { locp_ = locp; }
     void HSAdd(const std::string& token_str) {
         hs_.insert(token_str_); }
     void HSAdd(const HideSet& hs) {
@@ -115,7 +116,7 @@ private:
     const TokenType tag_;
     // Integer and float constant is stored as string for now.
     const std::string token_str_{};
-    std::shared_ptr<SourceLoc> locp_{};
+    SourceLocPtr locp_{};
     HideSet hs_{};
     static const std::unordered_map<TokenType, std::string> kTypeToStr_;
 };

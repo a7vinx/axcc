@@ -52,10 +52,12 @@ private:
     std::size_t align_;
 };
 
+using TypePtr = std::shared_ptr<Type>;
+
 class QualType {
 public:
     QualType() = default;
-    QualType(const std::shared_ptr<Type>& typep) : typep_{typep} {}
+    QualType(const TypePtr& typep) : typep_{typep} {}
     bool IsConst() const { return qualifiers_ & kQualConst; }
     bool IsVolatile() const { return qualifiers_ & kQualVolatile; }
     bool IsRestrict() const { return qualifiers_ & kQualRestrict; }
@@ -68,9 +70,10 @@ public:
     void LoseAllQuals() { qualifiers_ = 0; }
     // Helper functions for the raw type.
     bool HasRawType() const { return typep_.get() != nullptr; }
-    void SetRawType(const std::shared_ptr<Type>& typep) { typep_ = typep; }
+    void SetRawType(const TypePtr& typep) { typep_ = typep; }
     void ResetRawType() { typep_.reset(); }
     Type& RawType() const { assert(typep_.get() != nullptr); return *typep_; }
+    TypePtr RawTypep() const { return typep_; }
     // Make QualType behave like a pointer.
     Type* operator->() const {
         assert(typep_.get() != nullptr); return typep_.get(); }
@@ -88,7 +91,7 @@ private:
     unsigned char qualifiers_{0};
     // Use shared_ptr in order to reuse the same Type class, e.g., struct/union
     // types and typedefs.
-    std::shared_ptr<Type> typep_{};
+    TypePtr typep_{};
 };
 
 class VoidType : public Type {

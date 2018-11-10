@@ -897,7 +897,7 @@ void Preprocessor::Subst(const std::list<Token>& is, std::list<Token>& os,
                          const Token::HideSet& hideset,
                          const std::vector<std::string>& fp,
                          const std::vector<std::list<Token>>& ap,
-                         std::shared_ptr<SourceLoc> locp) {
+                         SourceLocPtr locp) {
     int pos;
     for (auto t_iter = is.cbegin(); t_iter != is.cend(); ++t_iter) {
         const Token& cur_t = *t_iter;
