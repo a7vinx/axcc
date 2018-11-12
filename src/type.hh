@@ -209,14 +209,20 @@ class RecordType : public Type {
 public:
     RecordType(const std::vector<ObjectPtr>& members, bool is_struct);
     virtual bool IsCompatible(const Type& other) const override;
+    bool HasMember(const std::string& name) const {
+        return members_map_.find(name) != members_map_.cend(); }
     // Return a null pointer if no such member.
     ObjectPtr GetMember(const std::string& name) const;
+    bool HasConstMember() const { return has_const_member_; }
 private:
     void StructTypeCtor(const std::vector<ObjectPtr>& members);
     void UnionTypeCtor(const std::vector<ObjectPtr>& members);
+    void MergeAnonyRecord(const RecordType& rec_type, int base_off = 0);
+    void PushMember(const ObjectPtr& objp);
     // The order of members should be remembered.
     std::vector<ObjectPtr> members_{};
     std::map<std::string, ObjectPtr> members_map_{};
+    bool has_const_member_{false};
 };
 
 template<typename T>
