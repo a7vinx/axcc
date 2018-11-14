@@ -275,6 +275,17 @@ inline bool IsSignedTy(const Type& type) {
 inline bool IsSignedTy(const ArithType& arith_type) {
     return arith_type.ATySign() == ArithTySign::kSigned;
 }
+inline bool IsFuncPtrTy(const Type& type) {
+    return IsPointerTy(type) &&
+           IsFuncTy(TypeConv<PointerType>(type).PointeeQTy());
+}
+inline bool IsObjPtrTy(const Type& type) {
+    return !IsFuncPtrTy(type);
+}
+inline bool IsVoidPtrTy(const Type& type) {
+    return IsPointerTy(type) &&
+           IsVoidTy(TypeConv<PointerType>(type).PointeeQTy());
+}
 
 }
 #endif
