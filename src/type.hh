@@ -254,6 +254,12 @@ inline bool IsRecordTy(const Type& type) {
 inline bool IsScalarTy(const Type& type) {
     return IsArithTy(type) || IsPointerTy(type);
 }
+inline bool IsBoolTy(const Type& type) {
+    return IsArithTy(type) ? IsBoolTy(TypeConv<ArithType>(type)) : false;
+}
+inline bool IsBoolTy(const ArithType& arith_type) {
+    return arith_type.ATyKind() == ArithTyKind::kBool;
+}
 inline bool IsIntegerTy(const Type& type) {
     return IsArithTy(type) ? IsIntegerTy(TypeConv<ArithType>(type)) : false;
 }
@@ -274,6 +280,9 @@ inline bool IsSignedTy(const Type& type) {
 }
 inline bool IsSignedTy(const ArithType& arith_type) {
     return arith_type.ATySign() == ArithTySign::kSigned;
+}
+inline bool IsObjectTy(const Type& type) {
+    return !IsFuncTy(type);
 }
 inline bool IsFuncPtrTy(const Type& type) {
     return IsPointerTy(type) &&
