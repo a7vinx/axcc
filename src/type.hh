@@ -296,5 +296,10 @@ inline bool IsVoidPtrTy(const Type& type) {
            IsVoidTy(TypeConv<PointerType>(type).PointeeQTy());
 }
 
+template<typename T, typename... Args>
+QualType MakeQType(Args&&... args) {
+    return QualType{std::make_shared<T>(std::forward<Args>(args)...)};
+}
+
 }
 #endif
