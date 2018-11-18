@@ -13,6 +13,8 @@ namespace axcc {
 // Forward Declarations
 class Object;
 using ObjectPtr = std::shared_ptr<Object>;
+class Expr;
+using ExprPtr = std::shared_ptr<Expr>;
 
 enum class TypeKind : unsigned char {
     kVoid,
@@ -300,6 +302,33 @@ template<typename T, typename... Args>
 QualType MakeQType(Args&&... args) {
     return QualType{std::make_shared<T>(std::forward<Args>(args)...)};
 }
+
+// Produce an unqualified copy.
+QualType LoseAllQuals(const QualType& qtype);
+
+// Include lvalue conversion, array to pointer conversion, function to pointer
+// conversion.
+QualType ValueTrans(const QualType& qtype);
+
+// Return the promoted type. This function can only be used with integer type.
+QualType IntPromote(const QualType& qtype);
+// These three functions, IntPromote(), UsualArithConv(), ConvAsIfByAsgn(),
+// will generate the conversion node according to the conversion rules, if
+// needed, and set the expression pointer to the newly generated node. They
+// return the type determined according to the conversion rules and the
+// returned type must have been processed by value transformation. Note that
+// IntPromote() and UsualArithConv() will never generate a conversion node
+// with its error flag set while ConvAsIfByAsgn() may.
+QualType IntPromote(ExprPtr& exprp);
+QualType UsualArithConv(ExprPtr& lhsp, ExprPtr& rhsp);
+QualType ConvAsIfByAsgn(ExprPtr& exprp, const QualType& dst_qtype);
+
+// For integer type, return the promoted type. For other types, return the
+// type after value transformation.
+QualType TryIntPromote(const QualType& qtype);
+// For integer type, try to do the promotion and update the expression pointer.
+// For other types, simply return the type after value transformation.
+QualType TryIntPromote(ExprPtr& exprp);
 
 }
 #endif
