@@ -10,7 +10,7 @@ const std::unordered_map<TokenType, std::string> Token::kTypeToStr_{
     {TokenType::DOT, "."},
     {TokenType::COMMA, ","},
     {TokenType::COLON, ":"},
-    {TokenType::SEMI, ";"},
+    {TokenType::SCLN, ";"},
     {TokenType::EXCL, "!"},
     {TokenType::QUES, "?"},
     {TokenType::AST, "*"},

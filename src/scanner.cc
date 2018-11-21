@@ -70,7 +70,7 @@ std::unique_ptr<TokenSequence> Scanner::Scan() {
             case '?': MakeTokenInTS(TokenType::QUES); break;
             case '~': MakeTokenInTS(TokenType::TILDE); break;
             case ',': MakeTokenInTS(TokenType::COMMA); break;
-            case ';': MakeTokenInTS(TokenType::SEMI); break;
+            case ';': MakeTokenInTS(TokenType::SCLN); break;
             case '.':
                 if (std::isdigit(LookAhead())) ScanNumConstant();
                 else if (Try("..")) MakeTokenInTS(TokenType::ELLIP);

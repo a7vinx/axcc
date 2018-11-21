@@ -30,7 +30,7 @@ bool HasPreWhiteSpace(const SourceLoc& loc);
 
 enum class TokenType {
     // Punctuators
-    DOT, COMMA, COLON, SEMI,
+    DOT, COMMA, COLON, SCLN,
     EXCL, QUES, AST, PCT,
     AMP, VBAR, TILDE, CARET,
     ASGN, PLUS, MINUS, SHARP,
