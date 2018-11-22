@@ -2,6 +2,7 @@
 #define _AXCC_AST_HH_
 
 #include <memory>
+#include <vector>
 
 namespace axcc {
 
@@ -81,6 +82,38 @@ enum class AstNodeKind {
     kEnumerator,
     kObject,
     kBitField,
+};
+
+class AstNode {
+public:
+    AstNode(const AstNode&) = delete;
+    AstNode(AstNode&&) = delete;
+    AstNode& operator=(const AstNode&) = delete;
+    AstNode& operator=(AstNode&&) = delete;
+    virtual ~AstNode() = default;
+    AstNodeKind Kind() const { return kind_; }
+protected:
+    AstNode(const AstNodeKind& kind) : kind_{kind} {}
+private:
+    AstNodeKind kind_;
+};
+
+template<typename T, typename... Args>
+std::shared_ptr<T> MakeNodePtr(Args&&... args) {
+    return std::make_shared<T>(std::forward<Args>(args)...);
+}
+
+class FuncDef : public AstNode {
+public:
+    FuncDef(const CmpdStmtPtr& bodyp, const IdentPtr& identp)
+        : AstNode{AstNodeKind::kFuncDef}, bodyp_{bodyp}, identp_{identp} {}
+    CmpdStmtPtr FuncBodyp() const { return bodyp_; }
+    IdentPtr FuncIdentp() const { return identp_; }
+    // For allocating space on the stack.
+    std::vector<ObjectPtr> LocalVars() const;
+private:
+    CmpdStmtPtr bodyp_;
+    IdentPtr identp_;
 };
 
 }
