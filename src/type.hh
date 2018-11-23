@@ -104,49 +104,33 @@ public:
     virtual bool IsCompatible(const Type& other) const override;
 };
 
-enum class ArithTyKind : unsigned char {
-    kDefault,
-    kBool,
-    kChar,
-    kInt,
-    kFloat,
-    kDouble
-};
-
-enum class ArithTySize : unsigned char {
-    kDefault,
-    kShort,
-    kLong,
-    kLLong
-};
-
-enum class ArithTySign : unsigned char {
-    kDefault,
-    kSigned,
-    kUnsigned
-};
-
 class ArithType : public Type {
 public:
+    enum ArithSpec : unsigned int {
+        kASBool = 1 << 0,
+        kASChar = 1 << 1,
+        kASInt = 1 << 2,
+        kASFloat = 1 << 3,
+        kASDouble = 1 << 4,
+        kASShort = 1 << 5,
+        kASLong = 1 << 6,
+        kASLLong = 1 << 7,
+        kASSigned = 1 << 8,
+        kASUnsigned = 1 << 9
+    };
     static const std::size_t kCharWidth;
     static const std::size_t kShortWidth;
     static const std::size_t kIntWidth;
     static const std::size_t kLongWidth;
 
-    ArithType(const ArithTyKind& kind,
-              const ArithTySize& size = ArithTySize::kDefault,
-              const ArithTySign& sign = ArithTySign::kDefault);
+    ArithType(unsigned int arith_kind);
     virtual bool IsCompatible(const Type& other) const override;
-    ArithTyKind ATyKind() const { return aty_kind_; }
-    ArithTySize ATySize() const { return aty_size_; }
-    ArithTySign ATySign() const { return aty_sign_; }
+    unsigned int ArithKind() const { return arith_kind_; }
     // We add conversion ranks for floating types in order to simplify the
     // handling of some type conversions.
     int ConvRank() const;
 private:
-    ArithTyKind aty_kind_;
-    ArithTySize aty_size_;
-    ArithTySign aty_sign_;
+    unsigned int arith_kind_;
 };
 
 class PointerType : public Type {
@@ -260,28 +244,26 @@ inline bool IsBoolTy(const Type& type) {
     return IsArithTy(type) ? IsBoolTy(TypeConv<ArithType>(type)) : false;
 }
 inline bool IsBoolTy(const ArithType& arith_type) {
-    return arith_type.ATyKind() == ArithTyKind::kBool;
-}
-inline bool IsIntegerTy(const Type& type) {
-    return IsArithTy(type) ? IsIntegerTy(TypeConv<ArithType>(type)) : false;
-}
-inline bool IsIntegerTy(const ArithType& arith_type) {
-    ArithTyKind arithty_kind = arith_type.ATyKind();
-    return (arithty_kind == ArithTyKind::kBool ||
-            arithty_kind == ArithTyKind::kChar ||
-            arithty_kind == ArithTyKind::kInt);
+    return arith_type.ArithKind() & ArithType::kASBool;
 }
 inline bool IsFloatingTy(const Type& type) {
-    return !IsIntegerTy(type);
+    return IsArithTy(type) ? IsFloatingTy(TypeConv<ArithType>(type)) : false;
 }
 inline bool IsFloatingTy(const ArithType& arith_type) {
-    return !IsIntegerTy(arith_type);
+    return (arith_type.ArithKind() & ArithType::kASFloat) ||
+           (arith_type.ArithKind() & ArithType::kASDouble);
+}
+inline bool IsIntegerTy(const Type& type) {
+    return !IsFloatingTy(type);
+}
+inline bool IsIntegerTy(const ArithType& arith_type) {
+    return !IsFloatingTy(arith_type);
 }
 inline bool IsSignedTy(const Type& type) {
     return IsArithTy(type) ? IsSignedTy(TypeConv<ArithType>(type)) : false;
 }
 inline bool IsSignedTy(const ArithType& arith_type) {
-    return arith_type.ATySign() == ArithTySign::kSigned;
+    return !(arith_type.ArithKind() & ArithType::kASUnsigned);
 }
 inline bool IsObjectTy(const Type& type) {
     return !IsFuncTy(type);

@@ -15,34 +15,36 @@ const std::size_t ArithType::kShortWidth = 2;
 const std::size_t ArithType::kIntWidth = 4;
 const std::size_t ArithType::kLongWidth = 8;
 
-ArithType::ArithType(const ArithTyKind& kind, const ArithTySize& size,
-                     const ArithTySign& sign)
+ArithType::ArithType(unsigned int arith_kind)
     : Type{TypeKind::kArith, true},
-      aty_kind_{kind}, aty_size_{size}, aty_sign_{sign} {
-    if (aty_sign_ == ArithTySign::kDefault)
-        aty_sign_ = ArithTySign::kSigned;
-    if (aty_kind_ == ArithTyKind::kDefault)
-        aty_kind_ = ArithTyKind::kInt;
-    switch (aty_size_) {
-        case ArithTySize::kShort:
+      arith_kind_{arith_kind} {
+    // Make the flags as few as possible in order to make subsequent operations
+    // eaiser.
+    if ((arith_kind_ & kASShort) || (arith_kind_ & kASLong) ||
+        (arith_kind_ & kASLLong))
+        arith_kind_ &= ~kASInt;
+    if (arith_kind_ == kASSigned || arith_kind_ == kASUnsigned)
+        arith_kind_ = kASInt;
+    arith_kind_ &= ~kASSigned;
+    switch (arith_kind_) {
+        case kASBool:
+        case kASChar:
+        case kASChar | kASUnsigned:
+            SetSize(kCharWidth); break;
+        case kASShort:
+        case kASShort | kASUnsigned:
             SetSize(kShortWidth); break;
-        case ArithTySize::kLong:
-        case ArithTySize::kLLong:
+        case kASInt:
+        case kASInt | kASUnsigned:
+        case kASFloat:
+            SetSize(kIntWidth); break;
+        case kASLong:
+        case kASLong | kASUnsigned:
+        case kASDouble:
+        case kASDouble | kASLong:
+        case kASLLong:
+        case kASLLong | kASUnsigned:
             SetSize(kLongWidth); break;
-        case ArithTySize::kDefault:
-            switch (aty_kind_) {
-                case ArithTyKind::kBool:
-                case ArithTyKind::kChar:
-                    SetSize(kCharWidth); break;
-                case ArithTyKind::kInt:
-                case ArithTyKind::kFloat:
-                    SetSize(kIntWidth); break;
-                case ArithTyKind::kDouble:
-                    SetSize(kLongWidth); break;
-                default:
-                    assert(false);
-            }
-            break;
         default:
             assert(false);
     }
@@ -50,36 +52,27 @@ ArithType::ArithType(const ArithTyKind& kind, const ArithTySize& size,
 }
 
 bool ArithType::IsCompatible(const Type& other) const {
-    if (!IsArithTy(other))
-        return false;
-    const auto& other_arithty = TypeConv<ArithType>(other);
-    return (aty_kind_ == other_arithty.aty_kind_ &&
-            aty_size_ == other_arithty.aty_size_ &&
-            aty_sign_ == other_arithty.aty_sign_);
+    return IsArithTy(other) ?
+               arith_kind_ == TypeConv<ArithType>(other).arith_kind_ : false;
 }
 
 int ArithType::ConvRank() const {
     int rank = 0;
-    switch (aty_kind_) {
-        case ArithTyKind::kBool: rank = 1; break;
-        case ArithTyKind::kChar: rank = 2; break;
-        case ArithTyKind::kInt:
-            switch (aty_size_) {
-                case ArithTySize::kShort: rank = 3; break;
-                case ArithTySize::kDefault: rank = 4; break;
-                case ArithTySize::kLong: rank = 5; break;
-                case ArithTySize::kLLong: rank = 6; break;
-                default: assert(false);
-            }
-            break;
-        case ArithTyKind::kFloat: rank = 7; break;
-        case ArithTyKind::kDouble:
-            switch (aty_size_) {
-                case ArithTySize::kDefault: rank = 8; break;
-                case ArithTySize::kLong: rank = 9; break;
-                default: assert(false);
-            }
-            break;
+    switch (arith_kind_) {
+        case kASBool: rank = 1; break;
+        case kASChar: rank = 2; break;
+        case kASChar | kASUnsigned: rank = 3; break;
+        case kASShort: rank = 4; break;
+        case kASShort | kASUnsigned: rank = 5; break;
+        case kASInt: rank = 6; break;
+        case kASInt | kASUnsigned: rank = 7; break;
+        case kASLong: rank = 8; break;
+        case kASLong | kASUnsigned: rank = 9; break;
+        case kASLLong: rank = 10; break;
+        case kASLLong | kASUnsigned: rank = 11; break;
+        case kASFloat: rank = 12; break;
+        case kASDouble: rank = 13; break;
+        case kASDouble | kASLong: rank = 14; break;
         default:
             assert(false);
     }
@@ -150,7 +143,7 @@ QualType ValueTrans(const QualType& qtype) {
 QualType IntPromote(const QualType& qtype) {
     assert(IsIntegerTy(qtype));
     const auto& arith_type = TypeConv<ArithType>(qtype);
-    auto int_typep = std::make_shared<ArithType>(ArithTyKind::kInt);
+    auto int_typep = std::make_shared<ArithType>(ArithType::kASInt);
     if (arith_type.ConvRank() < int_typep->ConvRank())
         return QualType{int_typep};
     return LoseAllQuals(qtype);
