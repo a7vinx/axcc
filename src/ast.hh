@@ -116,5 +116,81 @@ private:
     IdentPtr identp_;
 };
 
+// Statements
+class Stmt : public AstNode {
+protected:
+    Stmt(const AstNodeKind& kind) : AstNode{kind} {}
+};
+
+class NullStmt : public Stmt {
+public:
+    NullStmt() : Stmt{AstNodeKind::kNullStmt} {}
+};
+
+class ExprStmt : public Stmt {
+public:
+    ExprStmt(const ExprPtr& exprp)
+        : Stmt{AstNodeKind::kExprStmt}, exprp_{exprp} {}
+    ExprPtr GetExprp() const { return exprp_; }
+private:
+    ExprPtr exprp_;
+};
+
+struct Initializer {
+    int off;
+    TypePtr typep;
+    ExprPtr initp;
+};
+
+class ObjDeclStmt : public Stmt {
+public:
+    ObjDeclStmt(const ObjectPtr& objp, const std::vector<Initializer>& inits)
+        : Stmt{AstNodeKind::kObjDeclStmt}, objp_{objp}, inits_{inits} {}
+    ObjectPtr Objp() const { return objp_; }
+    const std::vector<Initializer>& Inits() const { return inits_; }
+private:
+    ObjectPtr objp_;
+    std::vector<Initializer> inits_;
+};
+
+class LabelStmt : public Stmt {
+public:
+    LabelStmt(const LabelPtr& labelp)
+        : Stmt{AstNodeKind::kLabelStmt}, labelp_{labelp} {}
+    LabelPtr GetLabelp() const { return labelp_; }
+private:
+    LabelPtr labelp_;
+};
+
+class IfStmt : public Stmt {
+public:
+    IfStmt(const ExprPtr& condp, const StmtPtr& thenp, const StmtPtr& elsep)
+        : Stmt{AstNodeKind::kIfStmt}, condp_{condp}, thenp_{thenp}, elsep_{elsep} {}
+    ExprPtr CondExprp() const { return condp_; }
+    StmtPtr ThenStmtp() const { return thenp_; }
+    StmtPtr ElseStmtp() const { return elsep_; }
+private:
+    ExprPtr condp_;
+    StmtPtr thenp_;
+    StmtPtr elsep_;
+};
+
+class JumpStmt : public Stmt {
+public:
+    JumpStmt(const LabelPtr& dstp) : Stmt{AstNodeKind::kJumpStmt}, dstp_{dstp} {}
+    LabelPtr DstLabelp() const { return dstp_; }
+private:
+    LabelPtr dstp_;
+};
+
+class CmpdStmt : public Stmt {
+public:
+    CmpdStmt(const std::vector<StmtPtr>& stmts)
+        : Stmt{AstNodeKind::kCmpdStmt}, stmts_{stmts} {}
+    const std::vector<StmtPtr>& Stmts() const { return stmts_; }
+private:
+    std::vector<StmtPtr> stmts_;
+};
+
 }
 #endif
