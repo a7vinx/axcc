@@ -193,8 +193,11 @@ private:
 
 class RecordType : public Type {
 public:
+    RecordType(bool is_struct)
+        : Type{is_struct ? TypeKind::kStruct : TypeKind::kUnion, false} {}
     RecordType(const std::vector<ObjectPtr>& members, bool is_struct);
     virtual bool IsCompatible(const Type& other) const override;
+    void EncounterDef(const std::vector<ObjectPtr>& members);
     bool HasMember(const std::string& name) const {
         return members_map_.find(name) != members_map_.cend(); }
     // Return a null pointer if no such member.
