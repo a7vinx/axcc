@@ -167,9 +167,10 @@ private:
 
 class FuncType : public Type {
 public:
-    FuncType(const QualType& ret_qty, const std::vector<ObjectPtr>& params)
+    FuncType(const QualType& ret_qty, const std::vector<ObjectPtr>& params,
+             bool is_old_style = true)
         : Type{TypeKind::kFunc, false},
-          ret_qty_{ret_qty}, params_{params} {}
+          ret_qty_{ret_qty}, params_{params}, has_proto_{!is_old_style} {}
     virtual bool IsCompatible(const Type& other) const override;
     bool IsInline() const { return func_specs_ & kFSInline; }
     bool IsNoreturn() const { return func_specs_ & kFSNoreturn; }
@@ -181,6 +182,8 @@ public:
     // Use the type completeness atrribute to check function redefinition.
     void EncounterDef() { SetComplete(); }
     bool HasDef() const { return IsComplete(); }
+    void EncounterProto() { has_proto_ = true; }
+    bool HasProto() const { return has_proto_; }
 private:
     enum FuncSpecFlags : unsigned char {
         kFSInline = 1 << 0,
@@ -188,6 +191,7 @@ private:
     };
     QualType ret_qty_;
     std::vector<ObjectPtr> params_;
+    bool has_proto_;
     unsigned char func_specs_{0};
 };
 

@@ -105,18 +105,37 @@ bool FuncType::IsCompatible(const Type& other) const {
     if (!IsFuncTy(other))
         return false;
     const auto& other_functy = TypeConv<FuncType>(other);
-    if (!ret_qty_->IsCompatible(other_functy.ret_qty_) ||
-        params_.size() != other_functy.params_.size())
+    if (!ret_qty_->IsCompatible(other_functy.ret_qty_))
         return false;
-    auto self_piter = params_.cbegin();
-    auto other_piter = other_functy.params_.cbegin();
-    while (self_piter != params_.cend()) {
-        if (!(*self_piter)->QType().IsCompatible((*other_piter)->QType()))
-            return false;
-        ++self_piter;
-        ++other_piter;
+    // C11 6.7.6.3p15
+    if (!has_proto_ && !other_functy.has_proto_) {
+        return true;
+    } else if (has_proto_ && other_functy.has_proto_) {
+        auto is_cmpt = [](const ObjectPtr& lhs, const ObjectPtr& rhs) {
+            return lhs->QType().IsCompatible(rhs->QType()); };
+        return std::equal(params_.cbegin(), params_.cend(),
+                   other_functy.params_.cbegin(), other_functy.params_.cend(),
+                   is_cmpt);
+    } else {
+        const auto& no_proto_functy = has_proto_ ? other_functy : *this;
+        const auto& has_proto_functy = has_proto_ ? *this : other_functy;
+        if (no_proto_functy.IsComplete()) {
+            auto is_cmpt = [](const ObjectPtr& lhs, const ObjectPtr& rhs) {
+                return lhs->QType().IsCompatible(DefaultArgPromote(rhs->QType()));
+            };
+            return std::equal(has_proto_functy.params_.cbegin(),
+                              has_proto_functy.params_.cend(),
+                              no_proto_functy.params_.cbegin(),
+                              no_proto_functy.params_.cend(), is_cmpt);
+        } else {
+            auto is_cmpt = [](const ObjectPtr& objp) {
+                return objp->QType().IsCompatible(DefaultArgPromote(
+                                                      objp->QType())); };
+            return std::all_of(has_proto_functy.params_.cbegin(),
+                               has_proto_functy.params_.cend(),
+                               is_cmpt);
+        }
     }
-    return true;
 }
 
 QualType LoseAllQuals(const QualType& qtype) {
