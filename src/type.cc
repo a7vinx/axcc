@@ -149,6 +149,16 @@ QualType IntPromote(const QualType& qtype) {
     return LoseAllQuals(qtype);
 }
 
+// C11 6.5.2.2p6: If the expression that denotes the called function has a type
+// that does not include a prototype, the integer promotions are performed on
+// each argument, and arguments that have type float are promoted to double.
+QualType DefaultArgPromote(const QualType& qtype) {
+    if (IsArithTy(qtype) &&
+        TypeConv<ArithType>(qtype).ArithKind() & ArithType::kASFloat)
+        return MakeQType<ArithType>(ArithType::kASDouble);
+    return TryIntPromote(qtype);
+}
+
 QualType IntPromote(ExprPtr& exprp) {
     assert(IsIntegerTy(exprp->QType()));
     QualType promoted_qty = IntPromote(exprp->QType());
@@ -172,6 +182,13 @@ QualType UsualArithConv(ExprPtr& lhsp, ExprPtr& rhsp) {
     cast_if_need(lhsp);
     cast_if_need(rhsp);
     return highest_qty;
+}
+
+QualType DefaultArgPromote(ExprPtr& exprp) {
+    QualType promoted_qty = DefaultArgPromote(exprp->QType());
+    if (!exprp->QType()->IsCompatible(promoted_qty))
+        exprp = MakeNodePtr<UnaryExpr>(exprp->Locp(), promoted_qty, exprp);
+    return promoted_qty;
 }
 
 // C11 6.5.16.1 Simple assignment

@@ -297,15 +297,18 @@ QualType ValueTrans(const QualType& qtype);
 
 // Return the promoted type. This function can only be used with integer type.
 QualType IntPromote(const QualType& qtype);
-// These three functions, IntPromote(), UsualArithConv(), ConvAsIfByAsgn(),
-// will generate the conversion node according to the conversion rules, if
-// needed, and set the expression pointer to the newly generated node. They
-// return the type determined according to the conversion rules and the
-// returned type must have been processed by value transformation. Note that
-// IntPromote() and UsualArithConv() will never generate a conversion node
-// with its error flag set while ConvAsIfByAsgn() may.
+// Return the promoted type.
+QualType DefaultArgPromote(const QualType& qtype);
+// These four functions, IntPromote(), UsualArithConv(), DefaultArgPromote(),
+// ConvAsIfByAsgn(), will generate the conversion node according to the
+// conversion rules, if needed, and set the expression pointer to the newly
+// generated node. They return the type determined according to the conversion
+// rules and the returned type must have been processed by value transformation.
+// Note that IntPromote(), UsualArithConv() and DefaultArgPromote() will never
+// generate a conversion node with its error flag set while ConvAsIfByAsgn() may.
 QualType IntPromote(ExprPtr& exprp);
 QualType UsualArithConv(ExprPtr& lhsp, ExprPtr& rhsp);
+QualType DefaultArgPromote(ExprPtr& exprp);
 QualType ConvAsIfByAsgn(ExprPtr& exprp, const QualType& dst_qtype);
 
 // For integer type, return the promoted type. For other types, return the
