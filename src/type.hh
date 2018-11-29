@@ -58,8 +58,14 @@ using TypePtr = std::shared_ptr<Type>;
 
 class QualType {
 public:
-    QualType() = default;
-    QualType(const TypePtr& typep) : typep_{typep} {}
+    enum Qualifier : unsigned char {
+        kQualConst = 1 << 0,
+        kQualVolatile = 1 << 1,
+        kQualRestrict = 1 << 2,
+    };
+    QualType(unsigned char qualifiers = 0) : qualifiers_{qualifiers} {}
+    QualType(const TypePtr& typep, unsigned char qualifiers = 0)
+        : typep_{typep}, qualifiers_{qualifiers} {}
     bool IsConst() const { return qualifiers_ & kQualConst; }
     bool IsVolatile() const { return qualifiers_ & kQualVolatile; }
     bool IsRestrict() const { return qualifiers_ & kQualRestrict; }
@@ -85,12 +91,7 @@ public:
     bool IsCompatible(const QualType& other) const {
         return qualifiers_ == other.qualifiers_ && typep_->IsCompatible(other); }
 private:
-    enum QualFlags : unsigned char {
-        kQualConst = 1 << 0,
-        kQualVolatile = 1 << 1,
-        kQualRestrict = 1 << 2,
-    };
-    unsigned char qualifiers_{0};
+    unsigned char qualifiers_;
     // Use shared_ptr in order to reuse the same Type class, e.g., struct/union
     // types and typedefs.
     TypePtr typep_{};
@@ -167,6 +168,10 @@ private:
 
 class FuncType : public Type {
 public:
+    enum FuncSpec : unsigned char {
+        kFSInline = 1 << 0,
+        kFSNoreturn = 1 << 1,
+    };
     FuncType(const QualType& ret_qty, const std::vector<ObjectPtr>& params,
              bool is_old_style = true)
         : Type{TypeKind::kFunc, false},
@@ -185,10 +190,6 @@ public:
     void EncounterProto() { has_proto_ = true; }
     bool HasProto() const { return has_proto_; }
 private:
-    enum FuncSpecFlags : unsigned char {
-        kFSInline = 1 << 0,
-        kFSNoreturn = 1 << 1,
-    };
     QualType ret_qty_;
     std::vector<ObjectPtr> params_;
     bool has_proto_;
