@@ -138,6 +138,198 @@ bool FuncType::IsCompatible(const Type& other) const {
     }
 }
 
+namespace {
+
+// Also align the offset.
+void FinishBitFields(int& off, int& bit_off, std::size_t align) {
+    off += (bit_off + 7) / 8;
+    bit_off = 0;
+    off = AlignOff(off, align);
+}
+
+// Return true if success. Note that if the field is anonymous, it will
+// also return false.
+bool HandleBitFieldOff(BitField& bitfield, int& off, int& bit_off) {
+    // C11 6.7.2.1p12: As a special case, a bit-field structure member
+    // with a width of 0 indicates that no further bit-field is to be
+    // packed into the unit in which the previous bit-field, if any,
+    // was placed.
+    if (bitfield.BitWidth() == 0) {
+        if (!bitfield.IsAnonymous())
+            Error("named bit-field '" + bitfield.Name() + "' has zero width",
+                  bitfield.Loc());
+        else
+            FinishBitFields(off, bit_off, bitfield.QType()->Align());
+        return false;
+    }
+    int bf_tybits = bitfield.QType()->Size() * 8;
+    int left_space = bf_tybits - (off * 8 + bit_off) % bf_tybits;
+    if (left_space < bitfield.BitWidth())
+        FinishBitFields(off, bit_off, bitfield.QType()->Align());
+    bitfield.SetOff(off);
+    bitfield.SetBitOff(bit_off);
+    bit_off += bitfield.BitWidth();
+    if (bitfield.IsAnonymous())
+        return false;
+    return true;
+}
+
+} // unnamed namespace
+
+RecordType::RecordType(const std::vector<ObjectPtr>& members, bool is_struct)
+    : Type{is_struct ? TypeKind::kStruct : TypeKind::kUnion, true} {
+    if (is_struct)
+        StructTypeCtor(members);
+    else
+        UnionTypeCtor(members);
+}
+
+bool RecordType::IsCompatible(const Type& other) const {
+    // Direct pointer comparsion.
+    return &other == this;
+}
+
+void RecordType::EncounterDef(const std::vector<ObjectPtr>& members) {
+    if (Kind() == TypeKind::kStruct)
+        StructTypeCtor(members);
+    else
+        UnionTypeCtor(members);
+    SetComplete();
+}
+
+ObjectPtr RecordType::GetMember(const std::string& name) const {
+    auto iter = members_map_.find(name);
+    if (iter != members_map_.cend())
+        return iter->second;
+    return {};
+}
+
+void RecordType::StructTypeCtor(const std::vector<ObjectPtr>& members) {
+    int off = 0;
+    int bit_off = 0;
+    std::size_t align = 0;
+    for (auto iter = members.cbegin(); iter != members.cend(); ++iter) {
+        auto& obj = **iter;
+        if (!obj.IsAnonymous() && HasMember(obj.Name())) {
+            Error("duplicate member '" + obj.Name() + "'", obj.Loc());
+            continue;
+        }
+        // We also accept error nodes for suppressing subsequent errors and
+        // if it is, add it directly into the members list after the duplicate
+        // members check.
+        if (obj.HasErr()) {
+            PushMember(*iter);
+            continue;
+        }
+        if (!obj.QType()->IsComplete()) {
+            if (IsArrayTy(obj.QType()) && (iter + 1) == members.cend()) {
+                // C11 6.7.2.1p18: As a special case, the last element of a
+                // structure with more than one named member may have an
+                // incomplete array type; this is called a flexible array
+                // member.
+                if (members.size() == 1)
+                    // Error but no "continue" here, this member will still be
+                    // added in order to suppress subsequent errors such as "no
+                    // such member".
+                    Error("flexible array member '" + obj.Name() +
+                          "' not allowed in otherwise empty struct", obj.Loc());
+                // No "continue" here. This flexible array member will be
+                // handled as a normal object member below.
+            } else {
+                // Error but no "continue" here, same as above.
+                Error("field has incomplete type", obj.Loc());
+            }
+        }
+        if (obj.IsAnonymous() && !IsBitField(obj)) {
+            // Now deal with anonymous struct or union.
+            assert(IsRecordTy(obj.QType()));
+            const auto& rec_type = TypeConv<RecordType>(obj.QType());
+            FinishBitFields(off, bit_off, rec_type.Align());
+            MergeAnonyRecord(rec_type, off);
+            off += rec_type.Size();
+            align = std::max(align, rec_type.Align());
+            continue;
+        }
+        // Now deal with normal members including bit fields.
+        if (IsBitField(obj)) {
+            if (!HandleBitFieldOff(NodeConv<BitField>(obj), off, bit_off))
+                continue;
+        } else {
+            FinishBitFields(off, bit_off, obj.QType()->Align());
+            obj.SetOff(off);
+            off += obj.QType()->Size();
+        }
+        align = std::max(align, obj.QType()->Align());
+        PushMember(*iter);
+    }
+    FinishBitFields(off, bit_off, align);
+    SetAlign(align);
+    SetSize(off);
+}
+
+void RecordType::UnionTypeCtor(const std::vector<ObjectPtr>& members) {
+    std::size_t align = 0;
+    std::size_t size = 0;
+    for (auto iter = members.cbegin(); iter != members.cend(); ++iter) {
+        auto& obj = **iter;
+        if (!obj.IsAnonymous() && HasMember(obj.Name())) {
+            Error("duplicate member '" + obj.Name() + "'", obj.Loc());
+            continue;
+        }
+        // Same as struct.
+        if (obj.HasErr()) {
+            PushMember(*iter);
+            continue;
+        }
+        if (!obj.QType()->IsComplete())
+            // Error but no "continue" here for suppressing subsequent errors.
+            Error("field has incomplete type", obj.Loc());
+        if (IsBitField(obj) && !obj.IsAnonymous() &&
+            NodeConv<BitField>(obj).BitWidth() == 0) {
+            Error("named bit-field '" + obj.Name() + "' has zero width",
+                  obj.Loc());
+        } else if (obj.IsAnonymous() && !IsBitField(obj)) {
+            // Now deal with anonymous struct or union.
+            assert(IsRecordTy(obj.QType()));
+            const auto& rec_type = TypeConv<RecordType>(obj.QType());
+            MergeAnonyRecord(rec_type);
+            align = std::max(align, rec_type.Align());
+            size = std::max(size, rec_type.Size());
+        } else {
+            // Now deal with normal members. The offset of objects and the bit
+            // offset of bit fields remain 0.
+            align = std::max(align, obj.QType()->Align());
+            size = std::max(size, obj.QType()->Size());
+            PushMember(*iter);
+        }
+    }
+    SetAlign(align);
+    SetSize(size);
+}
+
+void RecordType::MergeAnonyRecord(const RecordType& rec_type, int base_off) {
+    for (const auto& objp : rec_type.members_) {
+        if (!objp->IsAnonymous() && HasMember(objp->Name())) {
+            Error("member of anonymous struct/union redeclares '" +
+                  objp->Name() + "'", objp->Loc());
+            // This continue may result in the size of the enclosing
+            // struct/union being unequal to the sum of the sizes of
+            // all members.
+            continue;
+        }
+        // The bit offset of bit fields will not be affected.
+        objp->SetOff(base_off + objp->Off());
+        PushMember(objp);
+    }
+}
+
+void RecordType::PushMember(const ObjectPtr& objp) {
+    members_.emplace_back(objp);
+    members_map_.emplace(objp->Name(), objp);
+    if (objp->QType().IsConst())
+        has_const_member_ = true;
+}
+
 QualType LoseAllQuals(const QualType& qtype) {
     QualType unqual_ty{qtype};
     unqual_ty.LoseAllQuals();
