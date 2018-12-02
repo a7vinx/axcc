@@ -323,5 +323,10 @@ QualType TryIntPromote(const QualType& qtype);
 // For other types, simply return the type after value transformation.
 QualType TryIntPromote(ExprPtr& exprp);
 
+// Return the aligned offset.
+inline int AlignOff(int off, std::size_t align) {
+    return ((off + align - 1) / align * align);
+}
+
 }
 #endif
