@@ -3,6 +3,12 @@
 
 #include <memory>
 #include <vector>
+#include <string>
+#include <cassert>
+
+#include "token.hh"
+#include "type.hh"
+#include "error.hh"
 
 namespace axcc {
 
@@ -190,6 +196,36 @@ public:
     const std::vector<StmtPtr>& Stmts() const { return stmts_; }
 private:
     std::vector<StmtPtr> stmts_;
+};
+
+// Expressions
+class Expr : public Stmt {
+public:
+    const SourceLoc& Loc() const {
+        assert(locp_.get() != nullptr); return *locp_; }
+    SourceLocPtr Locp() const { return locp_; }
+    QualType QType() const { return qtype_; }
+    bool IsLVal() const { return is_lval_; }
+    bool HasErr() const { return !err_flags_; }
+    void SetErrFlags() { err_flags_ = 1; }
+    void ErrInExpr(const std::string& msg, const SourceLoc& loc) {
+        Error(msg, loc); SetErrFlags(); }
+    void ErrInExpr(const std::string& msg) { ErrInExpr(msg, Loc()); }
+protected:
+    Expr(const AstNodeKind& kind, const SourceLocPtr& locp,
+         const QualType& qtype = {})
+        : Stmt{kind}, locp_{locp}, qtype_{qtype} {}
+    // For identifiers, the location information may need to be modified.
+    void SetLocp(const SourceLocPtr& locp) { locp_ = locp; }
+    // In some cases, we need to set the type later.
+    void SetQType(const QualType& qtype) { qtype_ = qtype; }
+    void SetLVal() { is_lval_ = true; }
+private:
+    SourceLocPtr locp_;
+    QualType qtype_{};
+    bool is_lval_{false};
+    // Now simply use it as a boolean.
+    unsigned char err_flags_{0};
 };
 
 }
