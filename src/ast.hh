@@ -228,5 +228,40 @@ private:
     unsigned char err_flags_{0};
 };
 
+enum class UnaryOpKind {
+    // Increment & Decrement
+    kPreInc, kPreDec,
+    kPostInc, kPostDec,
+    // Arithmetic
+    kPlus, kMinus, kBitNot,
+    // Logical
+    kLogicNot,
+    // Member Access
+    kDeref, kAddrOf,
+    // Other
+    kCast
+};
+
+class UnaryExpr : public Expr {
+public:
+    UnaryExpr(const SourceLocPtr& locp, const UnaryOpKind& op_kind,
+              const ExprPtr& operandp);
+    // For cast operation only
+    UnaryExpr(const SourceLocPtr& locp, const QualType& qtype,
+              const ExprPtr& operandp);
+    UnaryOpKind OpKind() const { return op_kind_; }
+    ExprPtr Operandp() const { return operandp_; }
+private:
+    void SetTypeIncDec();
+    void SetTypePlusMinus();
+    void SetTypeBitNot();
+    void SetTypeLogicNot();
+    void SetTypeDeref();
+    void SetTypeAddrOf();
+    void SetTypeCast();
+    UnaryOpKind op_kind_;
+    ExprPtr operandp_;
+};
+
 }
 #endif
