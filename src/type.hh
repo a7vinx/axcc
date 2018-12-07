@@ -72,6 +72,7 @@ public:
     void AddConst() { qualifiers_ |= kQualConst; }
     void AddVolatile() { qualifiers_ |= kQualVolatile; }
     void AddRestrict() { qualifiers_ |= kQualRestrict; }
+    void MergeQuals(const QualType& qtype) { qualifiers_ |= qtype.qualifiers_; }
     void RmConst() { qualifiers_ &= ~kQualConst; }
     void RmVolatile() { qualifiers_ &= ~kQualVolatile; }
     void RmRestrict() { qualifiers_ &= ~kQualRestrict; }
@@ -89,6 +90,7 @@ public:
     // Allow the implicit conversion to const Type&
     operator const Type&() const { return RawType(); }
     bool IsCompatible(const QualType& other) const {
+        assert(typep_.get() != nullptr);
         return qualifiers_ == other.qualifiers_ && typep_->IsCompatible(other); }
 private:
     unsigned char qualifiers_;

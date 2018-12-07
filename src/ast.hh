@@ -263,5 +263,47 @@ private:
     ExprPtr operandp_;
 };
 
+enum class BinaryOpKind {
+    // Assignment
+    kAsgn,
+    // Arithmetic
+    kAdd, kSub, kPro, kDiv, kMod,
+    kBitAnd, kBitOr, kBitXor,
+    kBitShl, kBitShr,
+    // Logical
+    kLogicAnd, kLogicOr,
+    // Comparison
+    kEqual, kNEqual,
+    kLess, kGreater,
+    kLessEq, kGreaterEq,
+    // Member Access
+    kMemAccs,
+    // Other
+    kComma
+};
+
+class BinaryExpr : public Expr {
+public:
+    BinaryExpr(const SourceLocPtr& locp, const BinaryOpKind& op_kind,
+               const ExprPtr& lhsp, const ExprPtr& rhsp);
+    BinaryOpKind OpKind() const { return op_kind_; }
+    ExprPtr Lhsp() const { return lhsp_; }
+    ExprPtr Rhsp() const { return rhsp_; }
+private:
+    void SetTypeAsgn();
+    void SetTypeAddOps();
+    void SetTypeMulOps();
+    void SetTypeBitLogicOps();
+    void SetTypeShiftOps();
+    void SetTypeLogicOps();
+    void SetTypeEqualOps();
+    void SetTypeRelationOps();
+    void SetTypeMemAccs();
+    void SetTypeComma();
+    BinaryOpKind op_kind_;
+    ExprPtr lhsp_;
+    ExprPtr rhsp_;
+};
+
 }
 #endif

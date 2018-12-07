@@ -163,4 +163,225 @@ void UnaryExpr::SetTypeCast() {
     }
 }
 
+BinaryExpr::BinaryExpr(const SourceLocPtr& locp, const BinaryOpKind& op_kind,
+                       const ExprPtr& lhsp, const ExprPtr& rhsp)
+    : Expr{AstNodeKind::kBinaryExpr, locp},
+      op_kind_{op_kind}, lhsp_{lhsp}, rhsp_{rhsp} {
+    if (!lhsp_ || !rhsp_ || lhsp_->HasErr() || rhsp_->HasErr()) {
+        SetErrFlags();
+        return;
+    }
+    switch (op_kind_) {
+        case BinaryOpKind::kAsgn:
+            SetTypeAsgn();
+        case BinaryOpKind::kAdd:
+        case BinaryOpKind::kSub:
+            SetTypeAddOps();
+        case BinaryOpKind::kPro:
+        case BinaryOpKind::kDiv:
+        case BinaryOpKind::kMod:
+            SetTypeMulOps();
+        case BinaryOpKind::kBitAnd:
+        case BinaryOpKind::kBitOr:
+        case BinaryOpKind::kBitXor:
+            SetTypeBitLogicOps();
+        case BinaryOpKind::kBitShl:
+        case BinaryOpKind::kBitShr:
+            SetTypeShiftOps();
+        case BinaryOpKind::kLogicAnd:
+        case BinaryOpKind::kLogicOr:
+            SetTypeLogicOps();
+        case BinaryOpKind::kEqual:
+        case BinaryOpKind::kNEqual:
+            SetTypeEqualOps();
+        case BinaryOpKind::kLess:
+        case BinaryOpKind::kGreater:
+        case BinaryOpKind::kLessEq:
+        case BinaryOpKind::kGreaterEq:
+            SetTypeRelationOps();
+        case BinaryOpKind::kMemAccs:
+            SetTypeMemAccs();
+        case BinaryOpKind::kComma:
+            SetTypeComma();
+        default:
+            assert(false);
+    }
+}
+
+// C11 6.5.16.1 Simple assignment
+void BinaryExpr::SetTypeAsgn() {
+    if (!IsModifiableLVal(*lhsp_)) {
+        ErrInExpr("left operand should be a modifiable lvalue");
+    } else {
+        SetQType(ConvAsIfByAsgn(rhsp_, lhsp_->QType()));
+        // We don't have to set the error flags here if errors occur during
+        // the type conversion.
+    }
+}
+
+// C11 6.5.6 Additive operators
+void BinaryExpr::SetTypeAddOps() {
+    QualType lhs_qtype = ValueTrans(lhsp_->QType());
+    QualType rhs_qtype = ValueTrans(rhsp_->QType());
+    if (IsArithTy(lhs_qtype) && IsArithTy(rhs_qtype)) {
+        SetQType(UsualArithConv(lhsp_, rhsp_));
+    } else if (IsPointerTy(lhs_qtype) || IsPointerTy(rhs_qtype)) {
+        auto is_complete_obj_ptr_ty = [this] (QualType ptr_qtype) {
+            if (!IsVoidPtrTy(ptr_qtype) && !IsFuncPtrTy(ptr_qtype) &&
+                TypeConv<PointerType>(ptr_qtype).PointeeQTy()->IsComplete()) {
+                ErrInExpr("arithmetic on incomplete object type");
+                return false;
+            } else {
+                if (IsVoidPtrTy(ptr_qtype)) {
+                    Warning("arithmetic on pointer to void type");
+                } else if (IsFuncPtrTy(ptr_qtype)) {
+                    Warning("arithmetic on pointer to function type");
+                }
+                return true;
+            }
+        };
+        if (IsPointerTy(lhs_qtype) && IsPointerTy(rhs_qtype) &&
+            op_kind_ == BinaryOpKind::kSub) {
+            QualType lhs_pte_qty = TypeConv<PointerType>(lhs_qtype).PointeeQTy();
+            QualType rhs_pte_qty = TypeConv<PointerType>(rhs_qtype).PointeeQTy();
+            if (!lhs_pte_qty->IsCompatible(rhs_pte_qty)) {
+                ErrInExpr("arithmetic on pointers to incompatible types");
+            } else if (is_complete_obj_ptr_ty(lhs_qtype)) {
+                // C11 6.5.6p9: The size of the result is implementation-defined,
+                // and its type (a signed integer type) is ptrdiff_t defined in
+                // the <stddef.h> header.
+                SetQType(MakeQType<ArithType>(ArithType::kASLong));
+            }
+        } else if (!IsIntegerTy(lhs_qtype) && !IsIntegerTy(rhs_qtype)) {
+            ErrInExpr("invalid operands to additive operators");
+        } else {
+            QualType ptr_qtype = IsIntegerTy(lhs_qtype) ? rhs_qtype : lhs_qtype;
+            if (is_complete_obj_ptr_ty(ptr_qtype))
+                SetQType(ptr_qtype);
+        }
+    } else {
+        ErrInExpr("invalid operands to additive operators");
+    }
+}
+
+// C11 6.5.5p2: Each of the operands shall have arithmetic type. The operands of
+// the % operator shall have integer type.
+void BinaryExpr::SetTypeMulOps() {
+    if (op_kind_ == BinaryOpKind::kMod &&
+        (!IsIntegerTy(lhsp_->QType()) || !IsIntegerTy(rhsp_->QType()))) {
+        ErrInExpr("operands of integer type expected");
+    } else if (!IsArithTy(lhsp_->QType()) || !IsArithTy(rhsp_->QType())) {
+        ErrInExpr("operands of arithmetic type expected");
+    } else {
+        SetQType(UsualArithConv(lhsp_, rhsp_));
+    }
+}
+
+// C11 6.5.10p2 & 6.5.11p2 & 6.5.12p2 : Each of the operands shall have integer
+// type.
+void BinaryExpr::SetTypeBitLogicOps() {
+    if (!IsIntegerTy(lhsp_->QType()) || !IsIntegerTy(rhsp_->QType())) {
+        ErrInExpr("operands of integer type expected");
+    } else {
+        SetQType(UsualArithConv(lhsp_, rhsp_));
+    }
+}
+
+// C11 6.5.7p2: Each of the operands shall have integer type.
+void BinaryExpr::SetTypeShiftOps() {
+    if (!IsIntegerTy(lhsp_->QType()) || !IsIntegerTy(rhsp_->QType())) {
+        ErrInExpr("operands of integer type expected");
+    } else {
+        IntPromote(rhsp_);
+        SetQType(IntPromote(lhsp_));
+    }
+}
+
+// C11 6.5.13p2 & 6.5.14p2: Each of the operands shall have scalar type.
+void BinaryExpr::SetTypeLogicOps() {
+    QualType lhs_qtype = ValueTrans(lhsp_->QType());
+    QualType rhs_qtype = ValueTrans(rhsp_->QType());
+    if (!IsScalarTy(lhs_qtype) || !IsScalarTy(rhs_qtype))
+        Error("operands of scalar type expected", Loc());
+    SetQType(MakeQType<ArithType>(ArithType::kASInt));
+}
+
+// C11 6.5.9 Equality operators
+void BinaryExpr::SetTypeEqualOps() {
+    QualType lhs_qtype = ValueTrans(lhsp_->QType());
+    QualType rhs_qtype = ValueTrans(rhsp_->QType());
+    if (IsArithTy(lhs_qtype) && IsArithTy(rhs_qtype)) {
+        UsualArithConv(lhsp_, rhsp_);
+    } else if (IsPointerTy(lhs_qtype) && IsPointerTy(rhs_qtype)) {
+        QualType lhs_pte_qty = TypeConv<PointerType>(lhs_qtype).PointeeQTy();
+        QualType rhs_pte_qty = TypeConv<PointerType>(rhs_qtype).PointeeQTy();
+        if (!lhs_pte_qty->IsCompatible(rhs_pte_qty)) {
+            if (!IsVoidTy(lhs_pte_qty) && !IsVoidTy(rhs_pte_qty)) {
+                Warning("equality comparison between pointers to incompatible "
+                        "types", Loc());
+            } else if (IsFuncTy(lhs_pte_qty) || IsFuncTy(rhs_pte_qty)) {
+                Warning("equality comparison between function pointer and "
+                        "void pointer", Loc());
+            }
+        }
+    } else {
+        Error("invalid operands to equality operators", Loc());
+    }
+    SetQType(MakeQType<ArithType>(ArithType::kASInt));
+}
+
+// C11 6.5.8 Relational operators
+void BinaryExpr::SetTypeRelationOps() {
+    QualType lhs_qtype = ValueTrans(lhsp_->QType());
+    QualType rhs_qtype = ValueTrans(rhsp_->QType());
+    if (IsArithTy(lhs_qtype) && IsArithTy(rhs_qtype)) {
+        UsualArithConv(lhsp_, rhsp_);
+    } else if (IsPointerTy(lhs_qtype) && IsPointerTy(rhs_qtype)) {
+        if (!TypeConv<PointerType>(lhs_qtype).PointeeQTy()->IsCompatible(
+                 TypeConv<PointerType>(rhs_qtype).PointeeQTy())) {
+            Warning("comparsion between pointers to incompatible types", Loc());
+        } else if (IsFuncPtrTy(lhs_qtype) || IsFuncPtrTy(rhs_qtype)) {
+            Warning("comparsion with function pointer", Loc());
+        }
+    } else {
+        Error("invalid operands to relational operators", Loc());
+    }
+    SetQType(MakeQType<ArithType>(ArithType::kASInt));
+}
+
+// C11 6.5.2.3p1: The first operand of the . operator shall have an atomic,
+// qualified, or unqualified structure or union type, and the second operand
+// shall name a member of that type.
+void BinaryExpr::SetTypeMemAccs() {
+    assert(IsObject(*rhsp_));
+    if (!IsRecordTy(lhsp_->QType())) {
+        ErrInExpr("left operand should be a structure or union");
+    } else {
+        std::string name = NodeConv<Object>(*rhsp_).Name();
+        ObjectPtr memberp = TypeConv<RecordType>(lhsp_->QType()).GetMember(name);
+        if (memberp.get() == nullptr) {
+            ErrInExpr("no member named '" + name + "' in the struct/union type"
+                      "of left operand");
+        } else {
+            // Replace the temporarily constructed object with the one stored
+            // in the struct/union.
+            rhsp_ = memberp;
+            if (rhsp_->HasErr()) {
+                SetErrFlags();
+                return;
+            }
+            QualType member_qtype = memberp->QType();
+            member_qtype.MergeQuals(lhsp_->QType());
+            SetQType(member_qtype);
+            if (lhsp_->IsLVal())
+                SetLVal();
+        }
+    }
+}
+
+// C11 6.5.17 Comma operator
+void BinaryExpr::SetTypeComma() {
+    SetQType(ValueTrans(rhsp_->QType()));
+}
+
 }
