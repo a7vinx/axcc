@@ -384,4 +384,46 @@ void BinaryExpr::SetTypeComma() {
     SetQType(ValueTrans(rhsp_->QType()));
 }
 
+// C11 6.5.15 Conditional operator
+TernaryExpr::TernaryExpr(const SourceLocPtr& locp, const ExprPtr& condp,
+                         const ExprPtr& truep, const ExprPtr& falsep)
+    : Expr{AstNodeKind::kTernaryExpr, locp},
+      condp_{condp}, truep_{truep}, falsep_{falsep} {
+    if (!condp_ || !truep_ || !falsep_ ||
+        condp_->HasErr() || truep_->HasErr() || falsep_->HasErr()) {
+        SetErrFlags();
+        return;
+    }
+    QualType lhs_qtype = ValueTrans(truep_->QType());
+    QualType rhs_qtype = ValueTrans(falsep_->QType());
+    if (!IsScalarTy(ValueTrans(condp_->QType()))) {
+        ErrInExpr("the condition expression should have scalar type");
+    } else if (IsArithTy(lhs_qtype) && IsArithTy(rhs_qtype)) {
+        SetQType(UsualArithConv(truep_, falsep_));
+    } else if (IsPointerTy(lhs_qtype) && IsPointerTy(rhs_qtype)) {
+        QualType lhs_pte_qty = TypeConv<PointerType>(lhs_qtype).PointeeQTy();
+        QualType rhs_pte_qty = TypeConv<PointerType>(rhs_qtype).PointeeQTy();
+        QualType final_pte_qty = lhs_pte_qty;
+        if (!lhs_pte_qty->IsCompatible(rhs_pte_qty)) {
+            if (IsVoidTy(lhs_pte_qty) || IsVoidTy(rhs_pte_qty)) {
+                if (IsFuncTy(lhs_pte_qty) || IsFuncTy(rhs_pte_qty))
+                    Warning("conditional operator with function pointer and "
+                            "void pointer", Loc());
+            } else {
+                Warning("pointer type mismatch", Loc());
+            }
+            final_pte_qty = MakeQType<VoidType>();
+            final_pte_qty.MergeQuals(lhs_pte_qty);
+        }
+        final_pte_qty.MergeQuals(rhs_pte_qty);
+        SetQType(MakeQType<PointerType>(final_pte_qty));
+    } else if (lhs_qtype->IsCompatible(rhs_qtype)) {
+        // Now the type must be void type or struct/union type.
+        assert(IsVoidTy(lhs_qtype) || IsRecordTy(lhs_qtype));
+        SetQType(lhs_qtype);
+    } else {
+        ErrInExpr("incompatible operand types");
+    }
+}
+
 }

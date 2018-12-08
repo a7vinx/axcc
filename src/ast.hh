@@ -305,5 +305,19 @@ private:
     ExprPtr rhsp_;
 };
 
+// Now only the conditional operator is ternary.
+class TernaryExpr : public Expr {
+public:
+    TernaryExpr(const SourceLocPtr& locp, const ExprPtr& condp,
+                const ExprPtr& truep, const ExprPtr& falsep);
+    ExprPtr Condp() const { return condp_; }
+    ExprPtr Truep() const { return truep_; }
+    ExprPtr Falsep() const { return falsep_; }
+private:
+    ExprPtr condp_;
+    ExprPtr truep_;
+    ExprPtr falsep_;
+};
+
 }
 #endif
