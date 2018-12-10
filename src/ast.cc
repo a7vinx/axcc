@@ -426,4 +426,48 @@ TernaryExpr::TernaryExpr(const SourceLocPtr& locp, const ExprPtr& condp,
     }
 }
 
+// C11 6.5.2.2 Function calls
+FuncCall::FuncCall(const SourceLocPtr& locp, const ExprPtr& funcp,
+                   const std::vector<ExprPtr>& args)
+    : Expr{AstNodeKind::kFuncCall, locp},
+      funcp_{funcp}, args_{args} {
+    // Only checks if there are some errors in the function pointer expression
+    // and put off the check of arguments.
+    if (!funcp_ || funcp_->HasErr()) {
+        SetErrFlags();
+        return;
+    }
+    if (!IsFuncPtrTy(funcp_->QType())) {
+        ErrInExpr("called object is not a function or function pointer");
+    } else {
+        QualType funcp_qty = TypeConv<PointerType>(funcp_->QType()).PointeeQTy();
+        const auto& func_type = TypeConv<FuncType>(funcp_qty);
+        QualType ret_qtype = func_type.RetQType();
+        const auto& params = func_type.Params();
+        // The function type we got here will never return an array type or a
+        // function type. This kind of error will be diagnosed by the parser.
+        assert(!IsArrayTy(ret_qtype) && !IsFuncTy(ret_qtype));
+        if (!IsVoidTy(ret_qtype) && !ret_qtype->IsComplete()) {
+            ErrInExpr("calling function with incomplete return type");
+        } else {
+            if (params.size() > args_.size()) {
+                Error("too few arguments to function call", Loc());
+            } else if (params.size() < args_.size()) {
+                Error("too many arguments to function call", Loc());
+            } else {
+                for (int i = 0; i < args_.size(); ++i) {
+                    if (args_[i]->HasErr()) {
+                        // Do nothing here.
+                    } else if (!args_[i]->QType()->IsComplete()) {
+                        Error("argument type is incomplete", Loc());
+                    } else {
+                        ConvAsIfByAsgn(args_[i], params[i]->QType());
+                    }
+                }
+            }
+            SetQType(LoseAllQuals(ret_qtype));
+        }
+    }
+}
+
 }

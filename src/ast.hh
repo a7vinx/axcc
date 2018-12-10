@@ -319,5 +319,16 @@ private:
     ExprPtr falsep_;
 };
 
+class FuncCall : public Expr {
+public:
+    FuncCall(const SourceLocPtr& locp, const ExprPtr& funcp,
+             const std::vector<ExprPtr>& args);
+    ExprPtr Funcp() const { return funcp_; }
+    const std::vector<ExprPtr>& Args() const { return args_; }
+private:
+    ExprPtr funcp_;
+    std::vector<ExprPtr> args_;
+};
+
 }
 #endif
