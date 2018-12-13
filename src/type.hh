@@ -144,6 +144,10 @@ public:
           pointee_qty_{pointee_qty} {}
     virtual bool IsCompatible(const Type& other) const override;
     QualType PointeeQTy() const { return pointee_qty_; }
+    // Be careful with the use of these reset functions because a Type class
+    // instance may be shared by multiple instances of QualType classes.
+    void ResetPointeeQTy(const QualType& pointee_qty) {
+        pointee_qty_ = pointee_qty; }
 private:
     QualType pointee_qty_;
 };
@@ -163,6 +167,7 @@ public:
     // Check type completeness before using the size of the array.
     std::size_t ArrSize() const { return arr_size_; }
     void SetArrSize(std::size_t arr_size);
+    void ResetElemQType(const QualType& elem_qty) { elem_qty_ = elem_qty; }
 private:
     QualType elem_qty_;
     std::size_t arr_size_{0};
@@ -184,13 +189,14 @@ public:
     void AddInline() { func_specs_ |= kFSInline; }
     void AddNoreturn() { func_specs_ |= kFSNoreturn; }
     QualType RetQType() const { return ret_qty_; }
-    std::vector<ObjectPtr> Params() const { return params_; }
+    const std::vector<ObjectPtr>& Params() const { return params_; }
     void UpdateParams(const std::vector<ObjectPtr>& params) { params_ = params; }
     // Use the type completeness atrribute to check function redefinition.
     void EncounterDef() { SetComplete(); }
     bool HasDef() const { return IsComplete(); }
     void EncounterProto() { has_proto_ = true; }
     bool HasProto() const { return has_proto_; }
+    void ResetRetQType(const QualType& ret_qty) { ret_qty_ = ret_qty; }
 private:
     QualType ret_qty_;
     std::vector<ObjectPtr> params_;
