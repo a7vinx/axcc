@@ -141,7 +141,7 @@ bool FuncType::IsCompatible(const Type& other) const {
 namespace {
 
 // Also align the offset.
-void FinishBitFields(int& off, int& bit_off, std::size_t align) {
+void FinishBitFields(long long& off, long long& bit_off, std::size_t align) {
     off += (bit_off + 7) / 8;
     bit_off = 0;
     off = AlignOff(off, align);
@@ -149,7 +149,7 @@ void FinishBitFields(int& off, int& bit_off, std::size_t align) {
 
 // Return true if success. Note that if the field is anonymous, it will
 // also return false.
-bool HandleBitFieldOff(BitField& bitfield, int& off, int& bit_off) {
+bool HandleBitFieldOff(BitField& bitfield, long long& off, long long& bit_off) {
     // C11 6.7.2.1p12: As a special case, a bit-field structure member
     // with a width of 0 indicates that no further bit-field is to be
     // packed into the unit in which the previous bit-field, if any,
@@ -162,8 +162,8 @@ bool HandleBitFieldOff(BitField& bitfield, int& off, int& bit_off) {
             FinishBitFields(off, bit_off, bitfield.QType()->Align());
         return false;
     }
-    int bf_tybits = bitfield.QType()->Size() * 8;
-    int left_space = bf_tybits - (off * 8 + bit_off) % bf_tybits;
+    long long bf_tybits = bitfield.QType()->Size() * 8;
+    long long left_space = bf_tybits - (off * 8 + bit_off) % bf_tybits;
     if (left_space < bitfield.BitWidth())
         FinishBitFields(off, bit_off, bitfield.QType()->Align());
     bitfield.SetOff(off);
@@ -205,8 +205,8 @@ ObjectPtr RecordType::GetMember(const std::string& name) const {
 }
 
 void RecordType::StructTypeCtor(const std::vector<ObjectPtr>& members) {
-    int off = 0;
-    int bit_off = 0;
+    long long off = 0;
+    long long bit_off = 0;
     std::size_t align = 0;
     for (auto iter = members.cbegin(); iter != members.cend(); ++iter) {
         auto& obj = **iter;
@@ -307,7 +307,7 @@ void RecordType::UnionTypeCtor(const std::vector<ObjectPtr>& members) {
     SetSize(size);
 }
 
-void RecordType::MergeAnonyRecord(const RecordType& rec_type, int base_off) {
+void RecordType::MergeAnonyRecord(const RecordType& rec_type, long long base_off) {
     for (const auto& objp : rec_type.members_) {
         if (!objp->IsAnonymous() && HasMember(objp->Name())) {
             Error("member of anonymous struct/union redeclares '" +

@@ -219,7 +219,7 @@ public:
 private:
     void StructTypeCtor(const std::vector<ObjectPtr>& members);
     void UnionTypeCtor(const std::vector<ObjectPtr>& members);
-    void MergeAnonyRecord(const RecordType& rec_type, int base_off = 0);
+    void MergeAnonyRecord(const RecordType& rec_type, long long base_off = 0);
     void PushMember(const ObjectPtr& objp);
     // The order of members should be remembered.
     std::vector<ObjectPtr> members_{};
@@ -332,7 +332,7 @@ QualType TryIntPromote(const QualType& qtype);
 QualType TryIntPromote(ExprPtr& exprp);
 
 // Return the aligned offset.
-inline int AlignOff(int off, std::size_t align) {
+inline long long AlignOff(long long off, std::size_t align) {
     return ((off + align - 1) / align * align);
 }
 
