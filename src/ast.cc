@@ -470,4 +470,31 @@ FuncCall::FuncCall(const SourceLocPtr& locp, const ExprPtr& funcp,
     }
 }
 
+StrLiteral::StrLiteral(const SourceLocPtr& locp, const std::string& str,
+                       const EncKind& enc)
+    : Expr{AstNodeKind::kStrLiteral, locp}, str_{str}, enc_{enc} {
+    unsigned int arith_kind = 0;
+    switch (enc_) {
+        case EncKind::kUtf8: arith_kind |= ArithType::kASChar; break;
+        case EncKind::kUtf16: arith_kind |= ArithType::kASShort; break;
+        case EncKind::kUtf32: arith_kind |= ArithType::kASInt; break;
+        default: assert(false);
+    }
+    SetQType(MakeQType<ArrayType>(MakeQType<ArithType>(arith_kind)));
+}
+
+// C11 6.4.5p5: If any of the tokens has an encoding prefix, the resulting
+// multibyte character sequence is treated as having the same prefix;
+void StrLiteral::Concat(const StrLiteral& other) {
+    str_ += other.str_;
+    if (enc_ == EncKind::kUtf8 &&
+        (other.enc_ == EncKind::kUtf16 || other.enc_ == EncKind::kUtf32))
+        enc_ = other.enc_;
+}
+
+AddrConstant::AddrConstant(const StrLiteralPtr& literalp)
+    : AddrConstant(literalp->Labelp()->Name()) {
+    literalp_ = literalp;
+}
+
 }
