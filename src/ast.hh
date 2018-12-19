@@ -393,5 +393,74 @@ private:
     StrLiteralPtr literalp_{};
 };
 
+// Linkage property only make sense in the cases of functions and objects.
+enum class LinkKind {
+    kInvalid,
+    kNoLink,
+    kIntern,
+    kExtern
+};
+
+class Ident : public Expr {
+public:
+    std::string Name() const { return name_; }
+    LinkKind Linkage() const { return link_; }
+    void UpdateLocp(const SourceLocPtr& locp) { SetLocp(locp); }
+protected:
+    Ident(const AstNodeKind& kind, const SourceLocPtr& locp,
+          const QualType& qtype, const std::string& name,
+          const LinkKind& link = LinkKind::kInvalid)
+        : Expr{kind, locp, qtype}, name_{name}, link_{link} {}
+private:
+    std::string name_;
+    LinkKind link_;
+};
+
+class Tag : public Ident {
+public:
+    Tag(const SourceLocPtr& locp, const QualType& qtype, const std::string& name)
+        : Ident{AstNodeKind::kTag, locp, qtype, name} {}
+};
+
+class Label : public Ident {
+public:
+    // If these null pointers are used, the assert should be triggered.
+    Label(const SourceLocPtr& locp, const std::string& name)
+        : Ident{AstNodeKind::kLabel, locp, {}, name} {}
+    Label() : Ident{AstNodeKind::kLabel, {}, {}, GenLabelName()} {}
+private:
+    std::string GenLabelName() {
+        static int c = 0;
+        return ".L" + std::to_string(c++);
+    }
+};
+
+class FuncName : public Ident {
+public:
+    FuncName(const SourceLocPtr& locp, const QualType& qtype,
+             const std::string& name, const LinkKind& link)
+        : Ident{AstNodeKind::kFuncName, locp, qtype, name, link} {}
+};
+
+class TypedefName : public Ident {
+public:
+    TypedefName(const SourceLocPtr& locp, const QualType& qtype,
+                const std::string& name)
+        : Ident{AstNodeKind::kTypedefName, locp, qtype, name} {}
+};
+
+class Enumerator : public Ident {
+public:
+    Enumerator(const SourceLocPtr& locp, const std::string& name, int val)
+        : Ident{AstNodeKind::kEnumerator, locp,
+                MakeQType<ArithType>(ArithType::kASInt), name},
+          constantp_{MakeNodePtr<Constant>(locp,
+                         MakeQType<ArithType>(ArithType::kASInt),
+                         static_cast<unsigned long long>(val))} {}
+    ConstantPtr Constantp() const { return constantp_; }
+private:
+    ConstantPtr constantp_;
+};
+
 }
 #endif
