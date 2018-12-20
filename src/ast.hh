@@ -462,5 +462,62 @@ private:
     ConstantPtr constantp_;
 };
 
+// Storage property only make sense for normal object.
+enum class StorKind {
+    kInvalid,
+    kAuto,
+    kStatic,
+    kRegister
+};
+
+// This class is also used to represent members in the struct/union.
+class Object : public Ident {
+public:
+    // For normal object.
+    Object(const SourceLocPtr& locp, const QualType& qtype,
+           const std::string& name, const LinkKind& link,
+           const StorKind& stor, bool has_def = true)
+        : Ident{AstNodeKind::kObject, locp, qtype, name, link}, stor_{stor} {}
+    // For struct member.
+    Object(const SourceLocPtr& locp, const QualType& qtype,
+           const std::string& name)
+        : Object{locp, qtype, name, LinkKind::kInvalid, StorKind::kInvalid} {}
+    StorKind Storage() const { return stor_; }
+    void EncounterDef() { has_def_ = true; }
+    bool HasDef() const { return has_def_; }
+    // Empty name means anonymous object.
+    bool IsAnonymous() const { return Name().empty(); }
+    void SetOff(long long off) { off_ = off; }
+    long long Off() const { return off_; }
+    // In some cases, we need to reset the true type later.
+    void UpdateQType(const QualType& qtype) { SetQType(qtype); }
+protected:
+    // For BitField, declp_ and stor_ make no sense any more.
+    Object(const AstNodeKind& kind, const SourceLocPtr& locp,
+           const QualType& qtype, const std::string& name)
+        : Ident{kind, locp, qtype, name}, stor_{StorKind::kInvalid} {}
+private:
+    StorKind stor_;
+    // Only when in file scope, we may need to initialize it to false.
+    bool has_def_;
+    // This field is used to record the offset of this object in the stack
+    // during code generation, or the offset in the record type if this object
+    // represent a member of a struct or union.
+    long long off_{0};
+};
+
+class BitField : public Object {
+public:
+    BitField(const SourceLocPtr& locp, const QualType& qtype,
+             const std::string& name, std::size_t width)
+        : Object{AstNodeKind::kBitField, locp, qtype, name}, bit_width_{width} {}
+    long long BitOff() const { return bit_off_; }
+    void SetBitOff(long long bit_off) { bit_off_ = bit_off; }
+    std::size_t BitWidth() const { return bit_width_; }
+private:
+    long long bit_off_{0};
+    std::size_t bit_width_;
+};
+
 }
 #endif
