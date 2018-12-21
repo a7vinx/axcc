@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <cassert>
+#include <cstdlib>
 
 #include "token.hh"
 #include "type.hh"
@@ -518,6 +519,21 @@ private:
     long long bit_off_{0};
     std::size_t bit_width_;
 };
+
+template<typename T>
+T& NodeConv(AstNode& node) {
+    return static_cast<T&>(node);
+}
+
+template<typename T>
+const T& NodeConv(const AstNode& node) {
+    return static_cast<const T&>(node);
+}
+
+template<typename T>
+std::shared_ptr<T> NodepConv(const AstNodePtr& nodep) {
+    return std::static_pointer_cast<T>(nodep);
+}
 
 }
 #endif
