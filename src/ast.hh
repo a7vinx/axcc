@@ -535,5 +535,37 @@ std::shared_ptr<T> NodepConv(const AstNodePtr& nodep) {
     return std::static_pointer_cast<T>(nodep);
 }
 
+// Helper functions for determining the kind of ast nodes.
+template<AstNodeKind kind>
+bool IsAstNodeKind(const AstNode& node) {
+    return node.Kind() == kind;
+}
+static constexpr auto& IsFuncDef = IsAstNodeKind<AstNodeKind::kFuncDef>;
+static constexpr auto& IsNullStmt = IsAstNodeKind<AstNodeKind::kNullStmt>;
+static constexpr auto& IsExprStmt = IsAstNodeKind<AstNodeKind::kExprStmt>;
+static constexpr auto& IsObjDefStmt = IsAstNodeKind<AstNodeKind::kObjDefStmt>;
+static constexpr auto& IsLabelStmt = IsAstNodeKind<AstNodeKind::kLabelStmt>;
+static constexpr auto& IsIfStmt = IsAstNodeKind<AstNodeKind::kIfStmt>;
+static constexpr auto& IsJumpStmt = IsAstNodeKind<AstNodeKind::kJumpStmt>;
+static constexpr auto& IsCmpdStmt = IsAstNodeKind<AstNodeKind::kCmpdStmt>;
+static constexpr auto& IsUnaryExpr = IsAstNodeKind<AstNodeKind::kUnaryExpr>;
+static constexpr auto& IsBinaryExpr = IsAstNodeKind<AstNodeKind::kBinaryExpr>;
+static constexpr auto& IsTernaryExpr = IsAstNodeKind<AstNodeKind::kTernaryExpr>;
+static constexpr auto& IsFuncCall = IsAstNodeKind<AstNodeKind::kFuncCall>;
+static constexpr auto& IsConstant = IsAstNodeKind<AstNodeKind::kConstant>;
+static constexpr auto& IsStrLiteral = IsAstNodeKind<AstNodeKind::kStrLiteral>;
+static constexpr auto& IsAddrConstant = IsAstNodeKind<AstNodeKind::kAddrConstant>;
+static constexpr auto& IsTag = IsAstNodeKind<AstNodeKind::kTag>;
+static constexpr auto& IsLabel = IsAstNodeKind<AstNodeKind::kLabel>;
+static constexpr auto& IsFuncName = IsAstNodeKind<AstNodeKind::kFuncName>;
+static constexpr auto& IsTypedefName = IsAstNodeKind<AstNodeKind::kTypedefName>;
+static constexpr auto& IsObjectOnly = IsAstNodeKind<AstNodeKind::kObject>;
+static constexpr auto& IsEnumerator = IsAstNodeKind<AstNodeKind::kEnumerator>;
+static constexpr auto& IsBitField = IsAstNodeKind<AstNodeKind::kObject>;
+
+inline bool IsObject(const AstNode& node) {
+    return IsObjectOnly(node) || IsBitField(node);
+}
+
 }
 #endif
