@@ -567,5 +567,7 @@ inline bool IsObject(const AstNode& node) {
     return IsObjectOnly(node) || IsBitField(node);
 }
 
+bool IsModifiableLVal(const Expr& expr);
+
 }
 #endif

@@ -497,4 +497,20 @@ AddrConstant::AddrConstant(const StrLiteralPtr& literalp)
     literalp_ = literalp;
 }
 
+// C11 6.3.2.1p1: A modifiable lvalue is an lvalue that does not have array
+// type, does not have an incomplete type, does not have a const-qualified
+// type, and if it is a structure or union, does not have any member
+// (including, recursively, any member or element of all contained aggregates
+// or unions) with a const-qualified type.
+bool IsModifiableLVal(const Expr& expr) {
+    if (!expr.IsLVal())
+        return false;
+    QualType qtype = expr.QType();
+    if (!qtype->IsComplete() || qtype.IsConst() || IsArrayTy(qtype))
+        return false;
+    if (IsRecordTy(qtype))
+        return !TypeConv<RecordType>(qtype).HasConstMember();
+    return true;
+}
+
 }
