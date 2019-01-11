@@ -520,6 +520,14 @@ private:
     std::size_t bit_width_;
 };
 
+class AstRoot {
+public:
+    void AddNode(const AstNodePtr& nodep) { ext_decls_.push_back(nodep); }
+    const std::vector<AstNodePtr>& ExtDecls() const { return ext_decls_; }
+private:
+    std::vector<AstNodePtr> ext_decls_{};
+};
+
 template<typename T>
 T& NodeConv(AstNode& node) {
     return static_cast<T&>(node);
