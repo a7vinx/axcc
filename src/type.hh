@@ -281,6 +281,12 @@ inline bool IsSignedTy(const Type& type) {
 inline bool IsSignedTy(const ArithType& arith_type) {
     return !(arith_type.ArithKind() & ArithType::kASUnsigned);
 }
+inline bool IsUnsignedTy(const Type& type) {
+    return !IsSignedTy(type);
+}
+inline bool IsUnsignedTy(const ArithType& arith_type) {
+    return !IsSignedTy(arith_type);
+}
 inline bool IsObjectTy(const Type& type) {
     return !IsFuncTy(type);
 }
