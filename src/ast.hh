@@ -20,7 +20,7 @@ class FuncDef;
 class Stmt;
 class NullStmt;
 class ExprStmt;
-class ObjDeclStmt;
+class ObjDefStmt;
 class LabelStmt;
 class IfStmt;
 class JumpStmt;
@@ -48,7 +48,7 @@ using FuncDefPtr = std::shared_ptr<FuncDef>;
 using StmtPtr = std::shared_ptr<Stmt>;
 using NullStmtPtr = std::shared_ptr<NullStmt>;
 using ExprStmtPtr = std::shared_ptr<ExprStmt>;
-using ObjDeclStmtPtr = std::shared_ptr<ObjDeclStmt>;
+using ObjDefStmtPtr = std::shared_ptr<ObjDefStmt>;
 using LabelStmtPtr = std::shared_ptr<LabelStmt>;
 using IfStmtPtr = std::shared_ptr<IfStmt>;
 using JumpStmtPtr = std::shared_ptr<JumpStmt>;
@@ -75,7 +75,7 @@ enum class AstNodeKind {
     // Statements
     kNullStmt,
     kExprStmt,
-    kObjDeclStmt,
+    kObjDefStmt,
     kLabelStmt,
     kIfStmt,
     kJumpStmt,
@@ -156,11 +156,12 @@ struct Initializer {
     ExprPtr initp;
 };
 
-class ObjDeclStmt : public Stmt {
+class ObjDefStmt : public Stmt {
 public:
-    ObjDeclStmt(const ObjectPtr& objp, const std::vector<Initializer>& inits)
-        : Stmt{AstNodeKind::kObjDeclStmt}, objp_{objp}, inits_{inits} {}
+    ObjDefStmt(const ObjectPtr& objp, const std::vector<Initializer>& inits)
+        : Stmt{AstNodeKind::kObjDefStmt}, objp_{objp}, inits_{inits} {}
     ObjectPtr Objp() const { return objp_; }
+    bool HasInits() const { return inits_.size() != 0; }
     const std::vector<Initializer>& Inits() const { return inits_; }
 private:
     ObjectPtr objp_;
