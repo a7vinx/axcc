@@ -125,6 +125,14 @@ public:
     static const std::size_t kShortWidth;
     static const std::size_t kIntWidth;
     static const std::size_t kLongWidth;
+    static const unsigned long long kSignedShortMax;
+    static const unsigned long long kSignedIntMax;
+    static const unsigned long long kSignedLongMax;
+    static const unsigned long long kUnsignedShortMax;
+    static const unsigned long long kUnsignedIntMax;
+    static const unsigned long long kUnsignedLongMax;
+    static const long double kFloatMax;
+    static const long double kDoubleMax;
 
     ArithType(unsigned int arith_kind);
     virtual bool IsCompatible(const Type& other) const override;

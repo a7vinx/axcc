@@ -14,6 +14,14 @@ const std::size_t ArithType::kCharWidth = 1;
 const std::size_t ArithType::kShortWidth = 2;
 const std::size_t ArithType::kIntWidth = 4;
 const std::size_t ArithType::kLongWidth = 8;
+const unsigned long long ArithType::kSignedShortMax = (1ull << 15) - 1;
+const unsigned long long ArithType::kSignedIntMax = (1ull << 31) - 1;
+const unsigned long long ArithType::kSignedLongMax = (1ull << 63) - 1;
+const unsigned long long ArithType::kUnsignedShortMax = (1ull << 16) - 1;
+const unsigned long long ArithType::kUnsignedIntMax = (1ull << 32) - 1;
+const unsigned long long ArithType::kUnsignedLongMax = ~0ull;
+const long double ArithType::kFloatMax = 3.402823e+38;
+const long double ArithType::kDoubleMax = 1.797693e+308;
 
 ArithType::ArithType(unsigned int arith_kind)
     : Type{TypeKind::kArith, true},
