@@ -210,6 +210,14 @@ Token* TokenSequence::LookAheadN(int n) {
     return &(**std::next(token_list_iter_, n - 1));
 }
 
+bool TokenSequence::Try(const TokenType& tag) {
+    if (NextIs(tag)) {
+        Next();
+        return true;
+    }
+    return false;
+}
+
 void TokenSequence::ErasePrevN(int n) {
     if (reach_end_) n -= 1;
     token_list_.erase(std::prev(token_list_iter_, n), token_list_iter_);
