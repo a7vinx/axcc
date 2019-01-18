@@ -151,9 +151,9 @@ private:
 };
 
 struct Initializer {
-    int off;
+    long long off;
     TypePtr typep;
-    ExprPtr initp;
+    ExprPtr exprp;
 };
 
 class ObjDefStmt : public Stmt {
