@@ -24,6 +24,7 @@ class ObjDefStmt;
 class LabelStmt;
 class IfStmt;
 class JumpStmt;
+class ReturnStmt;
 class CmpdStmt;
 class Expr;
 class UnaryExpr;
@@ -52,6 +53,7 @@ using ObjDefStmtPtr = std::shared_ptr<ObjDefStmt>;
 using LabelStmtPtr = std::shared_ptr<LabelStmt>;
 using IfStmtPtr = std::shared_ptr<IfStmt>;
 using JumpStmtPtr = std::shared_ptr<JumpStmt>;
+using ReturnStmtPtr = std::shared_ptr<ReturnStmt>;
 using CmpdStmtPtr = std::shared_ptr<CmpdStmt>;
 using ExprPtr = std::shared_ptr<Expr>;
 using UnaryExprPtr = std::shared_ptr<UnaryExpr>;
@@ -79,6 +81,7 @@ enum class AstNodeKind {
     kLabelStmt,
     kIfStmt,
     kJumpStmt,
+    kReturnStmt,
     kCmpdStmt,
     // Expressions
     kUnaryExpr,
@@ -196,6 +199,15 @@ public:
     LabelPtr DstLabelp() const { return dstp_; }
 private:
     LabelPtr dstp_;
+};
+
+class ReturnStmt : public Stmt {
+public:
+    ReturnStmt(const ExprPtr& ret_exprp)
+        : Stmt{AstNodeKind::kReturnStmt}, ret_exprp_{ret_exprp} {}
+    ExprPtr RetExprp() const { return ret_exprp_; }
+private:
+    ExprPtr ret_exprp_;
 };
 
 class CmpdStmt : public Stmt {
@@ -556,6 +568,7 @@ static constexpr auto& IsObjDefStmt = IsAstNodeKind<AstNodeKind::kObjDefStmt>;
 static constexpr auto& IsLabelStmt = IsAstNodeKind<AstNodeKind::kLabelStmt>;
 static constexpr auto& IsIfStmt = IsAstNodeKind<AstNodeKind::kIfStmt>;
 static constexpr auto& IsJumpStmt = IsAstNodeKind<AstNodeKind::kJumpStmt>;
+static constexpr auto& IsReturnStmt = IsAstNodeKind<AstNodeKind::kReturnStmt>;
 static constexpr auto& IsCmpdStmt = IsAstNodeKind<AstNodeKind::kCmpdStmt>;
 static constexpr auto& IsUnaryExpr = IsAstNodeKind<AstNodeKind::kUnaryExpr>;
 static constexpr auto& IsBinaryExpr = IsAstNodeKind<AstNodeKind::kBinaryExpr>;
