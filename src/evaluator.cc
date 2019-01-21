@@ -24,6 +24,54 @@ private:
 
 } // unnamed namespace
 
+// For the correctness and precision of the results, we have to decide the type
+// used to store the intermediate result based on the type of the expression.
+ExprPtr Evaluator::EvalStaticInitializer(const ExprPtr& exprp) {
+    QualType expr_qty = exprp->QType();
+    assert(!IsVoidTy(expr_qty) && !IsRecordTy(expr_qty));
+    try {
+        // Note that it may be array type or function type.
+        if (IsPointerTy(ValueTrans(expr_qty))) {
+            return EvalExpr<AddrConstantPtr>(exprp);
+        } else if (IsFloatingTy(expr_qty)) {
+            return MakeNodePtr<Constant>(
+                       exprp->Locp(), expr_qty, EvalExpr<long double>(exprp));
+        } else if (IsSignedTy(expr_qty)) {
+            return MakeNodePtr<Constant>(
+                       exprp->Locp(), expr_qty,
+                       static_cast<unsigned long long>(EvalExpr<long long>(exprp)));
+        } else {
+            return MakeNodePtr<Constant>(
+                       exprp->Locp(), expr_qty,
+                       EvalExpr<unsigned long long>(exprp));
+        }
+    } catch (const EvalError& e) {
+        Error(e.what(), e.Loc());
+        return {};
+    }
+}
+
+ConstantPtr Evaluator::EvalIntConstantExpr(const ExprPtr& exprp) {
+    ConstantPtr constantp{};
+    if (!IsIntegerTy(exprp->QType())) {
+        Error("expression is not an integer constant expression", exprp->Loc());
+    } else {
+        constantp = NodepConv<Constant>(EvalStaticInitializer(exprp));
+    }
+    if (!constantp) {
+        // Return constant 1 for convenience. That means, in some cases, we can
+        // use this constant directly without checking its error flag.
+        constantp = MakeNodePtr<Constant>(exprp->Locp(), exprp->QType(), 1ull);
+        constantp->SetErrFlags();
+    }
+    return constantp;
+}
+
+bool Evaluator::EvalPPConstantExpr(const ExprPtr& exprp) {
+    ConstantPtr constantp = EvalIntConstantExpr(exprp);
+    return !constantp->HasErr() && constantp->UIntVal();
+}
+
 template<typename T>
 T Evaluator::EvalExpr(const ExprPtr& exprp) {
     switch (exprp->Kind()) {
