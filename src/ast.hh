@@ -356,18 +356,18 @@ public:
     Constant(const SourceLocPtr& locp, const QualType& qtype,
              unsigned long long ull_val)
         : Expr{AstNodeKind::kConstant, locp, qtype}, ull_val_{ull_val} {}
-    Constant(const SourceLocPtr& locp, const QualType& qtype,
-             long double ld_val)
+    Constant(const SourceLocPtr& locp, const QualType& qtype, long long ll_val)
+        : Expr{AstNodeKind::kConstant, locp, qtype}, ll_val_{ll_val} {}
+    Constant(const SourceLocPtr& locp, const QualType& qtype, long double ld_val)
         : Expr{AstNodeKind::kConstant, locp, qtype}, ld_val_{ld_val} {}
     unsigned long long UIntVal() const { return ull_val_; }
-    // unsigned long long to signed long long conversion is an
-    // implementation-defined behavior.
-    long long IntVal() const {
-        return reinterpret_cast<const long long&>(ull_val_); }
+    long long IntVal() const { return ll_val_; }
     long double FloatVal() const { return ld_val_; }
+    bool IsNegInt() const { return IsSignedTy(QType()) && ll_val_ < 0; }
 private:
     union {
         unsigned long long ull_val_;
+        long long ll_val_;
         long double ld_val_;
     };
 };
