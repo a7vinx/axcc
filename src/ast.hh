@@ -42,6 +42,7 @@ class TypedefName;
 class Enumerator;
 class Object;
 class BitField;
+class TempObj;
 
 // Type alias
 using AstNodePtr = std::shared_ptr<AstNode>;
@@ -71,6 +72,7 @@ using TypedefNamePtr = std::shared_ptr<TypedefName>;
 using EnumeratorPtr = std::shared_ptr<Enumerator>;
 using ObjectPtr = std::shared_ptr<Object>;
 using BitFieldPtr = std::shared_ptr<BitField>;
+using TempObjPtr = std::shared_ptr<TempObj>;
 
 enum class AstNodeKind {
     kFuncDef,
@@ -99,6 +101,7 @@ enum class AstNodeKind {
     kEnumerator,
     kObject,
     kBitField,
+    kTempObj
 };
 
 class AstNode {
@@ -491,7 +494,8 @@ public:
     Object(const SourceLocPtr& locp, const QualType& qtype,
            const std::string& name, const LinkKind& link,
            const StorKind& stor, bool has_def = true)
-        : Ident{AstNodeKind::kObject, locp, qtype, name, link}, stor_{stor} {}
+        : Ident{AstNodeKind::kObject, locp, qtype, name, link},
+          stor_{stor}, has_def_{has_def} {}
     // For struct member.
     Object(const SourceLocPtr& locp, const QualType& qtype,
            const std::string& name)
@@ -506,14 +510,15 @@ public:
     // In some cases, we need to reset the true type later.
     void UpdateQType(const QualType& qtype) { SetQType(qtype); }
 protected:
-    // For BitField, declp_ and stor_ make no sense any more.
     Object(const AstNodeKind& kind, const SourceLocPtr& locp,
-           const QualType& qtype, const std::string& name)
-        : Ident{kind, locp, qtype, name}, stor_{StorKind::kInvalid} {}
+           const QualType& qtype, const std::string& name,
+           const LinkKind& link = LinkKind::kInvalid,
+           const StorKind& stor = StorKind::kInvalid)
+        : Ident{kind, locp, qtype, name, link}, stor_{stor} {}
 private:
     StorKind stor_;
     // Only when in file scope, we may need to initialize it to false.
-    bool has_def_;
+    bool has_def_{true};
     // This field is used to record the offset of this object in the stack
     // during code generation, or the offset in the record type if this object
     // represent a member of a struct or union.
@@ -524,13 +529,26 @@ class BitField : public Object {
 public:
     BitField(const SourceLocPtr& locp, const QualType& qtype,
              const std::string& name, std::size_t width)
-        : Object{AstNodeKind::kBitField, locp, qtype, name}, bit_width_{width} {}
+        : Object{AstNodeKind::kBitField, locp, qtype, name},
+          bit_width_{width} {}
     long long BitOff() const { return bit_off_; }
     void SetBitOff(long long bit_off) { bit_off_ = bit_off; }
     std::size_t BitWidth() const { return bit_width_; }
 private:
     long long bit_off_{0};
     std::size_t bit_width_;
+};
+
+class TempObj : public Object {
+public:
+    TempObj(const SourceLocPtr& locp, const QualType& qtype,
+            const std::vector<Initializer>& inits)
+        : Object{AstNodeKind::kTempObj, locp, qtype, "",
+                 LinkKind::kNoLink, StorKind::kAuto},
+          inits_{inits} {}
+    const std::vector<Initializer>& Inits() const { return inits_; }
+private:
+    std::vector<Initializer> inits_;
 };
 
 class AstRoot {
@@ -583,10 +601,11 @@ static constexpr auto& IsFuncName = IsAstNodeKind<AstNodeKind::kFuncName>;
 static constexpr auto& IsTypedefName = IsAstNodeKind<AstNodeKind::kTypedefName>;
 static constexpr auto& IsObjectOnly = IsAstNodeKind<AstNodeKind::kObject>;
 static constexpr auto& IsEnumerator = IsAstNodeKind<AstNodeKind::kEnumerator>;
-static constexpr auto& IsBitField = IsAstNodeKind<AstNodeKind::kObject>;
+static constexpr auto& IsBitField = IsAstNodeKind<AstNodeKind::kBitField>;
+static constexpr auto& IsTempObj = IsAstNodeKind<AstNodeKind::kTempObj>;
 
 inline bool IsObject(const AstNode& node) {
-    return IsObjectOnly(node) || IsBitField(node);
+    return IsObjectOnly(node) || IsBitField(node) || IsTempObj(node);
 }
 
 bool IsModifiableLVal(const Expr& expr);
