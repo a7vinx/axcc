@@ -22,6 +22,45 @@ private:
     SourceLocPtr locp_;
 };
 
+// Check if the constant value is out of bounds according to its type and
+// correct them.
+long double CorrectConstantVal(long double val, unsigned int arith_kind) {
+    if (arith_kind & ArithType::kASFloat) {
+        return static_cast<float>(val);
+    } else {
+        return val;
+    }
+}
+
+long long CorrectConstantVal(long long val, unsigned int arith_kind) {
+    if (arith_kind & ArithType::kASBool) {
+        return static_cast<bool>(val);
+    } else if (arith_kind & ArithType::kASChar) {
+        return static_cast<signed char>(val);
+    } else if (arith_kind & ArithType::kASShort) {
+        return static_cast<short>(val);
+    } else if (arith_kind & ArithType::kASInt) {
+        return static_cast<int>(val);
+    } else {
+        return val;
+    }
+}
+
+unsigned long long CorrectConstantVal(unsigned long long val,
+                                      unsigned int arith_kind) {
+    if (arith_kind & ArithType::kASBool) {
+        return static_cast<bool>(val);
+    } else if (arith_kind & ArithType::kASChar) {
+        return static_cast<unsigned char>(val);
+    } else if (arith_kind & ArithType::kASShort) {
+        return static_cast<unsigned short>(val);
+    } else if (arith_kind & ArithType::kASInt) {
+        return static_cast<unsigned int>(val);
+    } else {
+        return val;
+    }
+}
+
 } // unnamed namespace
 
 // For the correctness and precision of the results, we have to decide the type
@@ -34,16 +73,22 @@ ExprPtr Evaluator::EvalStaticInitializer(const ExprPtr& exprp) {
         if (IsPointerTy(ValueTrans(expr_qty))) {
             return EvalExpr<AddrConstantPtr>(exprp);
         } else if (IsFloatingTy(expr_qty)) {
-            return MakeNodePtr<Constant>(
-                       exprp->Locp(), expr_qty, EvalExpr<long double>(exprp));
+            long double val = EvalExpr<long double>(exprp);
+            // Note that we only do the correction here. It is a rudimentary
+            // approach and it can not solve the underlying problem.
+            val = CorrectConstantVal(
+                      val, TypeConv<ArithType>(expr_qty).ArithKind());
+            return MakeNodePtr<Constant>(exprp->Locp(), expr_qty, val);
         } else if (IsSignedTy(expr_qty)) {
-            return MakeNodePtr<Constant>(
-                       exprp->Locp(), expr_qty,
-                       static_cast<unsigned long long>(EvalExpr<long long>(exprp)));
+            long long val = EvalExpr<long long>(exprp);
+            val = CorrectConstantVal(
+                      val, TypeConv<ArithType>(expr_qty).ArithKind());
+            return MakeNodePtr<Constant>(exprp->Locp(), expr_qty, val);
         } else {
-            return MakeNodePtr<Constant>(
-                       exprp->Locp(), expr_qty,
-                       EvalExpr<unsigned long long>(exprp));
+            unsigned long long val = EvalExpr<unsigned long long>(exprp);
+            val = CorrectConstantVal(
+                      val, TypeConv<ArithType>(expr_qty).ArithKind());
+            return MakeNodePtr<Constant>(exprp->Locp(), expr_qty, val);
         }
     } catch (const EvalError& e) {
         Error(e.what(), e.Loc());
