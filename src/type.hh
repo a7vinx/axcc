@@ -264,36 +264,36 @@ inline bool IsRecordTy(const Type& type) {
 inline bool IsScalarTy(const Type& type) {
     return IsArithTy(type) || IsPointerTy(type);
 }
-inline bool IsBoolTy(const Type& type) {
-    return IsArithTy(type) ? IsBoolTy(TypeConv<ArithType>(type)) : false;
-}
 inline bool IsBoolTy(const ArithType& arith_type) {
     return arith_type.ArithKind() & ArithType::kASBool;
 }
-inline bool IsFloatingTy(const Type& type) {
-    return IsArithTy(type) ? IsFloatingTy(TypeConv<ArithType>(type)) : false;
+inline bool IsBoolTy(const Type& type) {
+    return IsArithTy(type) ? IsBoolTy(TypeConv<ArithType>(type)) : false;
 }
 inline bool IsFloatingTy(const ArithType& arith_type) {
     return (arith_type.ArithKind() & ArithType::kASFloat) ||
            (arith_type.ArithKind() & ArithType::kASDouble);
 }
-inline bool IsIntegerTy(const Type& type) {
-    return !IsFloatingTy(type);
+inline bool IsFloatingTy(const Type& type) {
+    return IsArithTy(type) ? IsFloatingTy(TypeConv<ArithType>(type)) : false;
 }
 inline bool IsIntegerTy(const ArithType& arith_type) {
     return !IsFloatingTy(arith_type);
 }
-inline bool IsSignedTy(const Type& type) {
-    return IsArithTy(type) ? IsSignedTy(TypeConv<ArithType>(type)) : false;
+inline bool IsIntegerTy(const Type& type) {
+    return !IsFloatingTy(type);
 }
 inline bool IsSignedTy(const ArithType& arith_type) {
     return !(arith_type.ArithKind() & ArithType::kASUnsigned);
 }
-inline bool IsUnsignedTy(const Type& type) {
-    return !IsSignedTy(type);
+inline bool IsSignedTy(const Type& type) {
+    return IsArithTy(type) ? IsSignedTy(TypeConv<ArithType>(type)) : false;
 }
 inline bool IsUnsignedTy(const ArithType& arith_type) {
     return !IsSignedTy(arith_type);
+}
+inline bool IsUnsignedTy(const Type& type) {
+    return !IsSignedTy(type);
 }
 inline bool IsObjectTy(const Type& type) {
     return !IsFuncTy(type);
