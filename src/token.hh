@@ -143,6 +143,8 @@ bool IsIdentOrKeyword(const Token& t);
 
 class TokenSequence {
 public:
+    using Cursor = std::list<std::unique_ptr<Token>>::iterator;
+
     TokenSequence() = default;
     // Deep copy
     TokenSequence(const TokenSequence& other);
@@ -173,6 +175,8 @@ public:
     bool CurIs(const TokenType& tag) { return CurToken()->Tag() == tag; }
     bool NextIs(const TokenType& tag) { return LookAhead()->Tag() == tag; }
     bool Try(const TokenType& tag);
+    Cursor SaveCursor() const { return token_list_iter_; }
+    void ResetCursor(const Cursor& cursor) { token_list_iter_ = cursor; }
     // Wrapper functions for adjusting the token list.
     // The previous n tokens indicated by the parameter n include the current
     // token (i.e., if n = 1 only the current token will be erased).
