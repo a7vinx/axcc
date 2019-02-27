@@ -28,17 +28,23 @@ UnaryExpr::UnaryExpr(const SourceLocPtr& locp, const UnaryOpKind& op_kind,
         case UnaryOpKind::kPostInc:
         case UnaryOpKind::kPostDec:
             SetTypeIncDec();
+            break;
         case UnaryOpKind::kPlus:
         case UnaryOpKind::kMinus:
             SetTypePlusMinus();
+            break;
         case UnaryOpKind::kBitNot:
             SetTypeBitNot();
+            break;
         case UnaryOpKind::kLogicNot:
             SetTypeLogicNot();
+            break;
         case UnaryOpKind::kDeref:
             SetTypeDeref();
+            break;
         case UnaryOpKind::kAddrOf:
             SetTypeAddrOf();
+            break;
         default:
             assert(false);
     }
@@ -174,35 +180,45 @@ BinaryExpr::BinaryExpr(const SourceLocPtr& locp, const BinaryOpKind& op_kind,
     switch (op_kind_) {
         case BinaryOpKind::kAsgn:
             SetTypeAsgn();
+            break;
         case BinaryOpKind::kAdd:
         case BinaryOpKind::kSub:
             SetTypeAddOps();
+            break;
         case BinaryOpKind::kPro:
         case BinaryOpKind::kDiv:
         case BinaryOpKind::kMod:
             SetTypeMulOps();
+            break;
         case BinaryOpKind::kBitAnd:
         case BinaryOpKind::kBitOr:
         case BinaryOpKind::kBitXor:
             SetTypeBitLogicOps();
+            break;
         case BinaryOpKind::kBitShl:
         case BinaryOpKind::kBitShr:
             SetTypeShiftOps();
+            break;
         case BinaryOpKind::kLogicAnd:
         case BinaryOpKind::kLogicOr:
             SetTypeLogicOps();
+            break;
         case BinaryOpKind::kEqual:
         case BinaryOpKind::kNEqual:
             SetTypeEqualOps();
+            break;
         case BinaryOpKind::kLess:
         case BinaryOpKind::kGreater:
         case BinaryOpKind::kLessEq:
         case BinaryOpKind::kGreaterEq:
             SetTypeRelationOps();
+            break;
         case BinaryOpKind::kMemAccs:
             SetTypeMemAccs();
+            break;
         case BinaryOpKind::kComma:
             SetTypeComma();
+            break;
         default:
             assert(false);
     }
