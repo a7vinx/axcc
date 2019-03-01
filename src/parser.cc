@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <exception>
 
 #include "parser.hh"
 
@@ -91,5 +92,21 @@ private:
     // Special treatment for labels.
     std::map<std::string, LabelPtr> labels_{};
 };
+
+namespace {
+
+class ParseError : public std::exception {
+public:
+    ParseError(const std::string& msg, const SourceLocPtr& locp)
+        : msg_{msg}, locp_{locp} {}
+    virtual const char* what() const noexcept { return msg_.c_str(); }
+    const SourceLoc& Loc() const noexcept {
+        assert(locp_.get() != nullptr); return *locp_; }
+private:
+    std::string msg_;
+    SourceLocPtr locp_;
+};
+
+} // unnamed namespace
 
 }
