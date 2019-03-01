@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <exception>
+#include <type_traits>
 
 #include "parser.hh"
 
@@ -106,6 +107,27 @@ private:
     std::string msg_;
     SourceLocPtr locp_;
 };
+
+template<typename F>
+class FinalObj {
+public:
+    FinalObj(F&& cleaner) : cleaner_{std::forward<F>(cleaner)} {}
+    FinalObj(const FinalObj&) = delete;
+    FinalObj(FinalObj&& other) : cleaner_{other.cleaner_} {
+        other.Cancel(); }
+    FinalObj& operator=(const FinalObj&) = delete;
+    FinalObj& operator=(FinalObj&&) = delete;
+    ~FinalObj() noexcept { if (do_it_) cleaner_(); }
+    void Cancel() { do_it_ = false; }
+private:
+    typename std::remove_reference<F>::type cleaner_;
+    bool do_it_{true};
+};
+
+template<typename F>
+FinalObj<F> Finally(F&& cleaner) {
+    return FinalObj<F>{std::forward<F>(cleaner)};
+}
 
 } // unnamed namespace
 
