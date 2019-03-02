@@ -194,4 +194,70 @@ void Parser::ParseTranslationUnit() {
     TryGenTentativeDefs();
 }
 
+void Parser::ParseExtDecl() {
+    if (ts_.CurToken()->Tag() == TokenType::STATIC_ASSERT) {
+        ParseStaticAssert();
+        return;
+    }
+    bool has_prev_ident = false;
+    DeclSpecInfo spec_info = ParseDeclSpec(DeclPos::kGlobal);
+    while (true) {
+        IdentPtr identp = ParseDeclarator(DeclPos::kGlobal, spec_info);
+        // Unless this identifier represents nothing, we will always insert it
+        // into current scope.
+        auto finally = Finally([&](){ TryAddToScope(identp); });
+        // A rudimentary approach to empty declaration checking.
+        if (identp->Name().empty() && !IsRecordTy(identp->QType())) {
+            // Warning but continue the subsequent processing.
+            Warning("empty declaration does not declare anything", identp->Loc());
+            finally.Cancel();
+        }
+        if (!has_prev_ident && CurIsFuncDef(*identp, spec_info.base_qty)) {
+            // Deal with function definition.
+            ast_.AddNode(ParseFuncDef(identp));
+        } else {
+            if (identp->Name().empty()) {
+                // Do nothing.
+            } else if (IsTypedefName(*identp)) {
+                // Do nothing more with typedef.
+            } else if (IsFuncName(*identp)) {
+                // Do nothing more with function declaration.
+            } else if (ts_.CurIs(TokenType::ASGN)) {
+                // Deal with normal definition.
+                ts_.Next();
+                if (spec_info.stor == StorSpec::kExtern)
+                    Warning("'extern' variable has an initializer",
+                            identp->Loc());
+                ObjectPtr objp = NodepConv<Object>(identp);
+                objp->EncounterDef();
+                ast_.AddNode(ParseStaticInitializer(objp));
+                // ParseStaticInitializer() will complete the array type.
+                if (!identp->QType()->IsComplete()) {
+                    Error("variable has incomplete type", identp->Loc());
+                    identp->SetErrFlags();
+                }
+                // Leave other checks to TryAddToScope().
+                RmTentativeDefIfHas(identp->Name());
+            } else if (IsVoidTy(identp->QType())) {
+                // Whether it is a tentative definition or declaration, void
+                // type should be checked immediately. If it is a tentative
+                // definition, do not add it to the record.
+                Error("variable has incomplete type", identp->Loc());
+                identp->SetErrFlags();
+            } else if (spec_info.stor == StorSpec::kNone ||
+                       spec_info.stor == StorSpec::kStatic) {
+                // Deal with tentative definition.
+                AddTentativeDefIfNeed(NodepConv<Object>(identp));
+            }  // For other declarations, no more actions need to be performed.
+            if (ts_.CurIs(TokenType::COMMA)) {
+                has_prev_ident = true;
+                ts_.Next();
+                continue;
+            }
+            ExpectCur(TokenType::SCLN);
+        }
+        return;
+    }
+}
+
 }
