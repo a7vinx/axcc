@@ -94,6 +94,16 @@ private:
     std::map<std::string, LabelPtr> labels_{};
 };
 
+Parser::Parser(TokenSequence& ts)
+    : ts_{ts}, scopesp_{std::make_unique<Scopes>()} {}
+
+Parser::~Parser() = default;
+
+AstRoot Parser::Parse() {
+    ParseTranslationUnit();
+    return ast_;
+}
+
 namespace {
 
 class ParseError : public std::exception {
@@ -130,5 +140,18 @@ FinalObj<F> Finally(F&& cleaner) {
 }
 
 } // unnamed namespace
+
+void Parser::ParseTranslationUnit() {
+    Token* tp = ts_.Begin();
+    for (; !IsEndToken(*tp); tp = ts_.Next()) {
+        try {
+            ParseExtDecl();
+        } catch (const ParseError& e) {
+            Error(e.what(), e.Loc());
+            SkipToSyncToken();
+        }
+    }
+    TryGenTentativeDefs();
+}
 
 }
