@@ -141,6 +141,46 @@ FinalObj<F> Finally(F&& cleaner) {
 
 } // unnamed namespace
 
+enum class Parser::DeclPos {
+    kGlobal,
+    kLocal,
+    kForLoop,
+    kParam,
+    kRecord,
+    kTypeName
+};
+
+enum class Parser::StorSpec {
+    kNone,
+    kAuto,
+    kExtern,
+    kStatic,
+    kRegister,
+    kTypedef
+};
+
+enum class Parser::TypeSpec {
+    kNone,
+    kVoid,
+    kArith,
+    kEnum,
+    kRecord,
+    kTypeAlias
+};
+
+struct Parser::DeclSpecInfo {
+    QualType base_qty;
+    StorSpec stor;
+    long long align;
+    unsigned char func_specs;
+};
+
+struct Parser::DeclaratorInfo {
+    QualType qtype;
+    std::string name;
+    SourceLocPtr locp;
+};
+
 void Parser::ParseTranslationUnit() {
     Token* tp = ts_.Begin();
     for (; !IsEndToken(*tp); tp = ts_.Next()) {
