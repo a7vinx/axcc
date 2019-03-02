@@ -260,4 +260,18 @@ void Parser::ParseExtDecl() {
     }
 }
 
+void Parser::ParseStaticAssert() {
+    const SourceLoc& loc = ts_.CurToken()->Loc();
+    ExpectNext(TokenType::LPAR);
+    ts_.Next();
+    ConstantPtr constantp = ParseIntConstantExpr();
+    ExpectCur(TokenType::COMMA);
+    ts_.Next();
+    StrLiteralPtr literalp = ParseStrLiterals();
+    if (!constantp->IntVal())
+        Error(literalp->Str(), loc);
+    ExpectNext(TokenType::RPAR);
+    ExpectNext(TokenType::SCLN);
+}
+
 }
