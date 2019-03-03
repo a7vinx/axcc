@@ -601,4 +601,157 @@ int Parser::ParseEnumDefItem(int val) {
     return val;
 }
 
+TypePtr Parser::ParseRecordSpec() {
+    bool is_struct = ts_.CurIs(TokenType::STRUCT);
+    std::string tag_name{};
+    if (ts_.Try(TokenType::IDENTIFIER))
+        tag_name = ts_.CurToken()->TokenStr();
+    // Only when it is a named tag shall we use this location pointer.
+    SourceLocPtr tag_locp = ts_.CurToken()->LocPtr();
+    TagPtr tagp{};
+    bool is_def = false;
+    std::vector<ObjectPtr> members{};
+    if (ts_.Try(TokenType::LBRACE)) {
+        // Now it should be a struct/union definition.
+        members = ParseRecordDef();
+        is_def = true;
+        tagp = scopesp_->GetTagpInCurScope(tag_name);
+    } else if (!tag_name.empty() && ts_.NextIs(TokenType::SCLN)) {
+        // Forward declaration introduces a new tag if there is no such tag in
+        // current scope.
+        tagp = scopesp_->GetTagpInCurScope(tag_name);
+    } else if (!tag_name.empty()) {
+        // Otherwise, it introduces a new tag only when no such tag is visible.
+        tagp = scopesp_->GetTagpInAllScope(tag_name);
+    } else {
+        throw ParseError{"identifier or '{' expected", ts_.LookAhead()->LocPtr()};
+    }
+    // Handle this record specifier based on the tag we found.
+    // Make sure that the places where this tag is used referred to the same
+    // entity.
+    if (tagp) {
+        if ((is_struct && !IsStructTy(tagp->QType())) ||
+            (!is_struct && !IsUnionTy(tagp->QType()))) {
+            Error("use of '" + tag_name + "' with tag type that does not "
+                  "match previous declaration", *tag_locp);
+            if (is_def) {
+                // We still try to suppress those related errors by returning
+                // the type that should not exist.
+                return MakeQType<RecordType>(
+                           is_struct, members, tag_name).RawTypep();
+            }
+            // Otherwise let it return the type of the tag we found.
+        } else if (is_def) {
+            if (tagp->QType()->IsComplete())
+                Error("redefinition of '" + tag_name + "'", *tag_locp);
+            else
+                TypeConv<RecordType>(tagp->QType()).EncounterDef(members);
+        }
+    } else {
+        if (is_def) {
+            // Do not add it into the scope if it is unnamed.
+            if (tag_name.empty())
+                return MakeQType<RecordType>(is_struct, members).RawTypep();
+            tagp = MakeNodePtr<Tag>(
+                       tag_locp,
+                       MakeQType<RecordType>(is_struct, members, tag_name),
+                       tag_name);
+        } else {
+            tagp = MakeNodePtr<Tag>(
+                       tag_locp, MakeQType<RecordType>(is_struct, tag_name),
+                       tag_name);
+        }
+        TryAddToScope(tagp);
+    }
+    return tagp->QType().RawTypep();
+}
+
+std::vector<ObjectPtr> Parser::ParseRecordDef() {
+    std::vector<ObjectPtr> members{};
+    for (ts_.Next(); !ts_.CurIs(TokenType::RBRACE); ts_.Next()) {
+        try {
+            if (ts_.CurIs(TokenType::STATIC_ASSERT))
+                ParseStaticAssert();
+            else
+                ParseRecordDefItem(members);
+        } catch (const ParseError& e) {
+            // Like what we do in ParseEnumDef(), try to handle this error but
+            // throw a new exception only if we reach the end token.
+            Error(e.what(), e.Loc());
+            SkipToSyncToken();
+            if (IsEndToken(*ts_.CurToken()))
+                throw ParseError{"'}' expected", ts_.CurToken()->LocPtr()};
+            if (ts_.CurIs(TokenType::RBRACE))
+                break;
+        }
+    }
+    if (members.empty())
+        Warning("use of empty struct/union", ts_.CurToken()->Loc());
+    return members;
+}
+
+void Parser::ParseRecordDefItem(std::vector<ObjectPtr>& members) {
+    DeclSpecInfo spec_info = ParseDeclSpec(DeclPos::kRecord);
+    while (true) {
+        IdentPtr identp = ParseDeclarator(DeclPos::kRecord, spec_info);
+        if (IsFuncTy(identp->QType())) {
+            Error("field declared as a function", identp->Loc());
+        } else {
+            ObjectPtr objp = NodepConv<Object>(identp);
+            // Make sure this object will still be added into the members list
+            // when an error occurs.
+            auto finally = Finally([&](){ members.push_back(objp); });
+            if (ts_.CurIs(TokenType::COLON)) {
+                ts_.Next();
+                objp = ParseBitField(objp);
+            }
+            if (objp->IsAnonymous()) {
+                QualType obj_qtype = objp->QType();
+                if (!IsRecordTy(obj_qtype) && !IsBitField(*objp)) {
+                    Warning("empty declaration does not declare anything",
+                            objp->Loc());
+                    // Then this anonymous object do not need to be counted as a
+                    // member.
+                    finally.Cancel();
+                } else if (IsRecordTy(obj_qtype) &&
+                           !TypeConv<RecordType>(obj_qtype).TagName().empty()) {
+                    // It is a nested struct/union declaration.
+                    finally.Cancel();
+                }
+            }
+        }
+        if (!ts_.CurIs(TokenType::COMMA)) {
+            ExpectCur(TokenType::SCLN);
+            return;
+        }
+    }
+}
+
+ObjectPtr Parser::ParseBitField(const ObjectPtr& orig_objp) {
+    const SourceLoc& loc = orig_objp->Loc();
+    ConstantPtr constantp = ParseIntConstantExpr();
+    std::size_t bit_width = constantp->UIntVal();
+    std::size_t bitty_size =
+        IsBoolTy(orig_objp->QType()) ? 1 : orig_objp->QType()->Size() * 8;
+    if (!IsIntegerTy(orig_objp->QType())) {
+        Error("bit-field has non-integral type", loc);
+        return orig_objp;
+    }
+    if (constantp->IsNegInt()) {
+        Error("bit-field has negative width", loc);
+        bit_width = 1;
+    } else if (bit_width == 0 && !orig_objp->IsAnonymous()) {
+        Error("named bit-field '" + orig_objp->Name() + "' has zero width",
+              loc);
+        bit_width = 1;
+    } else if (bit_width > bitty_size) {
+        Error("width of bit-field (" + std::to_string(bit_width) + " bits) "
+              "exceeds width of its type (" + std::to_string(bitty_size) +
+              " bit)", loc);
+        bit_width = bitty_size;
+    }
+    return MakeNodePtr<BitField>(orig_objp->Locp(), orig_objp->QType(),
+                                 orig_objp->Name(), bit_width);
+}
+
 }
