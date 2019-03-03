@@ -274,4 +274,256 @@ void Parser::ParseStaticAssert() {
     ExpectNext(TokenType::SCLN);
 }
 
+namespace {
+
+// Compatibility of arithmetic type specifiers.
+const unsigned int kASBoolCmpt = 0;
+const unsigned int kASCharCmpt = ArithType::kASSigned | ArithType::kASUnsigned;
+const unsigned int kASIntCmpt = ArithType::kASSigned | ArithType::kASUnsigned |
+                                ArithType::kASShort | ArithType::kASLong |
+                                ArithType::kASLLong;
+const unsigned int kASFloatCmpt = 0;
+const unsigned int kASDoubleCmpt = ArithType::kASLong;
+const unsigned int kASShortCmpt = ArithType::kASInt | ArithType::kASSigned |
+                                  ArithType::kASUnsigned;
+const unsigned int kASLongCmpt = ArithType::kASInt | ArithType::kASLong |
+                                 ArithType::kASDouble | ArithType::kASSigned |
+                                 ArithType::kASUnsigned;
+const unsigned int kASSignedCmpt = ArithType::kASChar | ArithType::kASInt |
+                                   ArithType::kASShort | ArithType::kASLong |
+                                   ArithType::kASLLong;
+const unsigned int kASUnsignedCmpt = kASSignedCmpt;
+
+} // unnamed namespace
+
+Parser::DeclSpecInfo Parser::ParseDeclSpec(const DeclPos& decl_pos) {
+    Token* tp = ts_.CurToken();
+    DeclSpecInfo info{{}, StorSpec::kNone, -1, 0};
+    TypeSpec type_spec = TypeSpec::kNone;
+    unsigned int arith_kind = 0;
+    unsigned char qualifiers = 0;
+    bool spec_end = false;
+    while (true) {
+        switch (tp->Tag()) {
+            // Storage Class Specifiers
+            case TokenType::TYPEDEF:
+                TrySetStorSpec(decl_pos, info.stor, StorSpec::kTypedef, tp->Loc());
+                break;
+            case TokenType::EXTERN:
+                TrySetStorSpec(decl_pos, info.stor, StorSpec::kExtern, tp->Loc());
+                break;
+            case TokenType::STATIC:
+                TrySetStorSpec(decl_pos, info.stor, StorSpec::kStatic, tp->Loc());
+                break;
+            case TokenType::AUTO:
+                TrySetStorSpec(decl_pos, info.stor, StorSpec::kAuto, tp->Loc());
+                break;
+            case TokenType::REGISTER:
+                TrySetStorSpec(
+                    decl_pos, info.stor, StorSpec::kRegister, tp->Loc());
+                break;
+            case TokenType::THREAD_LOCAL:
+                Error("_Thread_local is not supported yet", tp->Loc());
+                break;
+            // Type Qualifiers
+            case TokenType::CONST:
+                TrySetQual(qualifiers, QualType::kQualConst, tp->Loc());
+                break;
+            case TokenType::RESTRICT:
+                TrySetQual(qualifiers, QualType::kQualRestrict, tp->Loc());
+                break;
+            case TokenType::VOLATILE:
+                TrySetQual(qualifiers, QualType::kQualVolatile, tp->Loc());
+                break;
+            case TokenType::ATOMIC:
+                Error("_Atomic is not supported yet", tp->Loc());
+                break;
+            // Function Specifiers
+            case TokenType::INLINE:
+                TrySetFuncSpec(info.func_specs, FuncType::kFSInline, tp->Loc());
+                break;
+            case TokenType::NO_RETURN:
+                TrySetFuncSpec(info.func_specs, FuncType::kFSNoreturn, tp->Loc());
+                break;
+            // Alignment Specifiers
+            case TokenType::ALIGNAS: {
+                const SourceLoc& loc = tp->Loc();
+                TrySetAlign(decl_pos, info.align, ParseAlignAs(), loc);
+                break;
+            }
+            // Type Specifiers
+            case TokenType::VOID:
+                TrySetTypeSpec(type_spec, TypeSpec::kVoid, tp->Loc());
+                break;
+            case TokenType::BOOL:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASBool,
+                                kASBoolCmpt, tp->Loc());
+                break;
+            case TokenType::CHAR:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASChar,
+                                kASCharCmpt, tp->Loc());
+                break;
+            case TokenType::INT:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASInt,
+                                kASIntCmpt, tp->Loc());
+                break;
+            case TokenType::FLOAT:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASFloat,
+                                kASFloatCmpt, tp->Loc());
+                break;
+            case TokenType::DOUBLE:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASDouble,
+                                kASDoubleCmpt, tp->Loc());
+                break;
+            case TokenType::SHORT:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASShort,
+                                kASShortCmpt, tp->Loc());
+                break;
+            case TokenType::LONG:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASLong,
+                                kASLongCmpt, tp->Loc());
+                break;
+            case TokenType::SIGNED:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASSigned,
+                                kASSignedCmpt, tp->Loc());
+                break;
+            case TokenType::UNSIGNED:
+                TrySetArithKind(type_spec, arith_kind, ArithType::kASUnsigned,
+                                kASUnsignedCmpt, tp->Loc());
+                break;
+            case TokenType::ENUM:
+                // Enumeration will be treated as int.
+                TrySetTypeSpec(type_spec, TypeSpec::kEnum, tp->Loc());
+                // Continue parsing the enum specifier even if it conflicts
+                // with previous type specifiers.
+                ParseEnumSpec();
+                break;
+            case TokenType::STRUCT:
+            case TokenType::UNION:
+                TrySetTypeSpec(type_spec, TypeSpec::kRecord, tp->Loc());
+                // Continue parsing.
+                info.base_qty.SetRawType(ParseRecordSpec());
+                break;
+            case TokenType::COMPLEX:
+                Error("complex floating types is not supported yet", tp->Loc());
+                break;
+            case TokenType::IMAGINARY:
+                Error("imaginary floating types is not supported yet", tp->Loc());
+                break;
+            default:
+                if (IsTypeNameToken(*tp)) {
+                    // Now it should be a typedef name.
+                    TrySetTypeSpec(type_spec, TypeSpec::kTypeAlias, tp->Loc());
+                    IdentPtr identp =
+                        scopesp_->GetOrdIdentpInAllScope(tp->TokenStr());
+                    QualType alias_qty = NodeConv<TypedefName>(*identp).QType();
+                    info.base_qty.SetRawType(alias_qty.RawTypep());
+                    info.base_qty.MergeQuals(alias_qty);
+                } else {
+                    spec_end = true;
+                }
+        }
+        if (spec_end)
+            break;
+        tp = ts_.Next();
+    }
+    switch (type_spec) {
+        case TypeSpec::kNone:
+            Warning("type specifier missing, defaults to 'int'", tp->Loc());
+            info.base_qty = MakeQType<ArithType>(ArithType::kASInt);
+            break;
+        case TypeSpec::kVoid:
+            info.base_qty = MakeQType<VoidType>();
+            break;
+        case TypeSpec::kArith:
+            info.base_qty = MakeQType<ArithType>(arith_kind);
+            break;
+        case TypeSpec::kEnum:
+            info.base_qty = MakeQType<ArithType>(ArithType::kASInt);
+            break;
+        case TypeSpec::kRecord:
+        case TypeSpec::kTypeAlias:
+            break;
+        default:
+            assert(false);
+    }
+    return info;
+}
+
+void Parser::TrySetStorSpec(const DeclPos& decl_pos, StorSpec& stor,
+                            const StorSpec& spec, const SourceLoc& loc) {
+    if (stor != StorSpec::kNone) {
+        Error("cannot combine with previous storage class specifier", loc);
+    } else if (decl_pos == DeclPos::kRecord || decl_pos == DeclPos::kTypeName) {
+        Error("type name does not allow storage class to be specified", loc);
+    } else if (decl_pos == DeclPos::kGlobal &&
+               (spec == StorSpec::kRegister || spec == StorSpec::kAuto)) {
+        Error("illegal storage class on file-scoped variable", loc);
+    } else if (decl_pos == DeclPos::kParam && spec != StorSpec::kRegister) {
+        Error("invalid storage class specifier in function declarator", loc);
+    } else if (decl_pos == DeclPos::kForLoop &&
+               spec != StorSpec::kAuto && spec != StorSpec::kRegister) {
+        Error("illegal storage class specifier in 'for' loop", loc);
+    } else {
+        stor = spec;
+    }
+}
+
+void Parser::TrySetQual(unsigned char& qualifiers, QualType::Qualifier qual,
+                        const SourceLoc& loc) {
+    if (qualifiers & qual)
+        Warning("duplicate qualifier", loc);
+    else
+        qualifiers |= qual;
+}
+
+void Parser::TrySetFuncSpec(unsigned char& func_specs, FuncType::FuncSpec spec,
+                            const SourceLoc& loc) {
+    if (func_specs & spec)
+        Warning("duplicate function specifier", loc);
+    else
+        func_specs |= spec;
+}
+
+void Parser::TrySetAlign(const DeclPos& decl_pos, long long& align,
+                         long long val, const SourceLoc& loc) {
+    if (decl_pos == DeclPos::kParam) {
+        Error("alignas specifier cannot be applied to a function parameter", loc);
+    } else if (decl_pos == DeclPos::kTypeName) {
+        Error("illegal alignas specifier, type name expected", loc);
+    } else if (val > align) {
+        // C11 6.7.5p6: An alignment specification of zero has no effect. When
+        // multiple alignment specifiers occur in a declaration, the effective
+        // alignment requirement is the strictest specified alignment.
+        align = val;
+    }
+}
+
+void Parser::TrySetTypeSpec(TypeSpec& type_spec, const TypeSpec& spec,
+                            const SourceLoc& loc) {
+    if (type_spec != TypeSpec::kNone)
+        Error("cannot combine with previous type specifier", loc);
+    else
+        type_spec = spec;
+}
+
+void Parser::TrySetArithKind(TypeSpec& type_spec, unsigned int& arith_kind,
+                             ArithType::ArithSpec spec, unsigned int cmpt,
+                             const SourceLoc& loc) {
+    if (type_spec == TypeSpec::kNone ||
+        (type_spec == TypeSpec::kArith && !(arith_kind & ~cmpt))) {
+        type_spec = TypeSpec::kArith;
+        // Special treatment for "long long".
+        if ((arith_kind & ArithType::kASLong) &&
+            (spec == ArithType::kASLong)) {
+            arith_kind &= ~ArithType::kASLong;
+            arith_kind |= ArithType::kASLLong;
+        } else {
+            arith_kind |= spec;
+        }
+    } else {
+        Error("cannot combine with previous type specifier", loc);
+    }
+}
+
 }
