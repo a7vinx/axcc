@@ -526,4 +526,79 @@ void Parser::TrySetArithKind(TypeSpec& type_spec, unsigned int& arith_kind,
     }
 }
 
+void Parser::ParseEnumSpec() {
+    std::string tag_name{};
+    if (ts_.Try(TokenType::IDENTIFIER))
+        tag_name = ts_.CurToken()->TokenStr();
+    SourceLocPtr tag_locp = ts_.CurToken()->LocPtr();
+    if (ts_.Try(TokenType::LBRACE)) {
+        // Now it should be a definition.
+        if (!tag_name.empty())
+            TryAddToScope(MakeNodePtr<Tag>(
+                              tag_locp, MakeQType<ArithType>(ArithType::kASInt),
+                              tag_name));
+        ParseEnumDef();
+    } else if (!tag_name.empty()) {
+        TagPtr tagp = scopesp_->GetTagpInAllScope(tag_name);
+        if (tagp) {
+            if (IsRecordTy(tagp->QType()))
+                Error("use of '" + tag_name + "' with tag type that "
+                      "does not match previous declaration", *tag_locp);
+            // Do nothing if the tag is used correctly.
+        } else if (ts_.NextIs(TokenType::SCLN)) {
+            // Before we report the undefined tag, give this forward declaration
+            // special treatment.
+            // C11 6.7.2.3p7: A similar construction with enum does not exist.
+            Error("no forward-declarations for enums in C", *tag_locp);
+        } else {
+            Error("undefined enum tag '" + tag_name + "'", *tag_locp);
+        }
+    } else {
+        throw ParseError{"identifier or '{' expected", ts_.LookAhead()->LocPtr()};
+    }
+}
+
+void Parser::ParseEnumDef() {
+    ts_.Next();
+    if (ts_.CurIs(TokenType::RBRACE))
+        Error("use of empty enum", ts_.CurToken()->Loc());
+    int val = 0;
+    while (!ts_.CurIs(TokenType::RBRACE)) {
+        try {
+            val = ParseEnumDefItem(val) + 1;
+        } catch (const ParseError& e) {
+            // Try to handle the error, i.e., Skip to the synchronizing token.
+            // If the token we skip to is the right brace, we assume that we
+            // stop at the end of the current definition and then we can end
+            // normally. If not, throw a new exception to the upper handler.
+            Error(e.what(), e.Loc());
+            SkipToSyncToken();
+            if (!ts_.CurIs(TokenType::RBRACE))
+                throw ParseError{"'}' expected", ts_.CurToken()->LocPtr()};
+            break;
+        }
+    }
+}
+
+int Parser::ParseEnumDefItem(int val) {
+    ExpectCur(TokenType::IDENTIFIER);
+    std::string name = ts_.CurToken()->TokenStr();
+    SourceLocPtr locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    // Make sure this enumerator will still be inserted into current scope when
+    // an error occurs.
+    auto finally =
+        Finally([&](){ TryAddToScope(MakeNodePtr<Enumerator>(locp, name, val)); });
+    if (ts_.CurIs(TokenType::ASGN)) {
+        ts_.Next();
+        val = ParseIntConstantExpr()->IntVal();
+    }
+    if (ts_.CurIs(TokenType::COMMA)) {
+        ts_.Next();
+    } else {
+        ExpectCur(TokenType::RBRACE);
+    }
+    return val;
+}
+
 }
