@@ -754,4 +754,137 @@ ObjectPtr Parser::ParseBitField(const ObjectPtr& orig_objp) {
                                  orig_objp->Name(), bit_width);
 }
 
+namespace {
+
+// C11 6.7.6.3p1: A function declarator shall not specify a return type
+// that is a function type or an array type.
+// The completeness of the return type do not need to be checked here.
+void CheckFuncRetQType(const QualType& ret_qtype, const SourceLoc& loc) {
+    if (IsFuncTy(ret_qtype)) {
+        Error("function cannot return function type", loc);
+    } else if (IsArrayTy(ret_qtype)) {
+        Error("function cannot return array type", loc);
+    }
+}
+
+void CheckArrElemQType(const QualType& elem_qtype, const SourceLoc& loc) {
+    if (IsFuncTy(elem_qtype)) {
+        Error("array of functions", loc);
+    } else if (!elem_qtype->IsComplete()) {
+        Error("array has incomplete element type", loc);
+    }
+}
+
+// Replace the basic type of the type specified by parameter typep with the
+// type real_base.
+void CorrectBaseQType(TypePtr& typep, const QualType& real_base,
+                      const SourceLoc& loc) {
+    if (IsPointerTy(*typep)) {
+        TypeConv<PointerType>(*typep).ResetPointeeQTy(real_base);
+    } else if (IsArrayTy(*typep)) {
+        TypeConv<ArrayType>(*typep).ResetElemQType(real_base);
+        CheckArrElemQType(real_base, loc);
+    } else if (IsFuncTy(*typep)) {
+        TypeConv<FuncType>(*typep).ResetRetQType(real_base);
+        CheckFuncRetQType(real_base, loc);
+    } else {
+        assert(false);
+    }
+}
+
+} // unnamed namespace
+
+// Return the parsed identifier including Object, FuncName, TypedefName and it
+// may be an abstract declarator. If some errors occured during parsing, it
+// will not throw an exception and will try to return the identifier that has
+// been parsed while leaving the situation to the caller to deal with.
+IdentPtr Parser::ParseDeclarator(const DeclPos& decl_pos,
+                                 const DeclSpecInfo& spec_info,
+                                 bool check_err,
+                                 TypePtr* prev_hookp) {
+    Token* tp = ts_.CurToken();
+    std::string name{};
+    SourceLocPtr name_locp{};
+    // '(' may be the beginning of function parameter list or of a parentheses
+    // group.
+    if (tp->Tag() == TokenType::LPAR && !IsTypeNameToken(*ts_.LookAhead())) {
+        // Now we are dealing with a parentheses group. We need the information
+        // behind the parentheses group to know the real type so we use a
+        // temporary wrong basic type to do the recursive parsing and leave a
+        // hook pointer so that when we get the real basic type we can correct it.
+        ts_.Next();
+        TypePtr hook{};
+        IdentPtr tmp_identp = ParseDeclarator(decl_pos, spec_info, false, &hook);
+        try {
+            ExpectCur(TokenType::RPAR);
+        } catch (const ParseError& e) {
+            // Do not skip to the synchronizing token. Just pack up the work
+            // we have done and leave the mess to the caller to deal with.
+            Error(e.what(), e.Loc());
+            return tmp_identp;
+        }
+        ts_.Next();
+        QualType real_base = ParseDeclaratorTail(spec_info.base_qty);
+        // Set previous hook pointer if has. The order can not be reversed.
+        if (prev_hookp && hook.get() != nullptr)
+            *prev_hookp = hook;
+        if (prev_hookp && !real_base.IsCompatible(spec_info.base_qty))
+            *prev_hookp = real_base.RawTypep();
+        // Now get the real type.
+        QualType real_qtype = real_base;
+        if (hook.get() != nullptr) {
+            CorrectBaseQType(hook, real_base, tmp_identp->Loc());
+            real_qtype = tmp_identp->QType();
+        }
+        DeclaratorInfo declarator_info{real_qtype, tmp_identp->Name(),
+                                       tmp_identp->Locp()};
+        return MakeDeclarator(decl_pos, spec_info, declarator_info, check_err);
+    } else if (tp->Tag() == TokenType::AST) {
+        ts_.Next();
+        unsigned char qualifiers = ParseQuals();
+        QualType new_base = MakeQType<PointerType>(spec_info.base_qty);
+        new_base.MergeQuals(qualifiers);
+        if (prev_hookp)
+            *prev_hookp = new_base.RawTypep();
+        DeclSpecInfo new_spec_info = spec_info;
+        new_spec_info.base_qty = new_base;
+        return ParseDeclarator(decl_pos, new_spec_info, check_err, nullptr);
+    } else if (IsIdentToken(*tp)) {
+        name = tp->TokenStr();
+        name_locp = tp->LocPtr();
+        tp = ts_.Next();
+    } else {
+        name_locp = tp->LocPtr();
+    }
+    QualType real_qtype = ParseDeclaratorTail(spec_info.base_qty);
+    if (prev_hookp && !spec_info.base_qty.IsCompatible(real_qtype))
+        *prev_hookp = real_qtype.RawTypep();
+    DeclaratorInfo declarator_info{real_qtype, name, name_locp};
+    return MakeDeclarator(decl_pos, spec_info, declarator_info, check_err);
+}
+
+unsigned char Parser::ParseQuals() {
+    unsigned char qualifiers = 0;
+    Token* tp = ts_.CurToken();
+    while (true) {
+        switch (tp->Tag()) {
+            case TokenType::CONST:
+                TrySetQual(qualifiers, QualType::kQualConst, tp->Loc());
+                break;
+            case TokenType::VOLATILE:
+                TrySetQual(qualifiers, QualType::kQualVolatile, tp->Loc());
+                break;
+            case TokenType::RESTRICT:
+                TrySetQual(qualifiers, QualType::kQualRestrict, tp->Loc());
+                break;
+            case TokenType::ATOMIC:
+                Error("_Atomic is not supported yet", tp->Loc());
+                break;
+            default:
+                return qualifiers;
+        }
+        tp = ts_.Next();
+    }
+}
+
 }
