@@ -887,4 +887,131 @@ unsigned char Parser::ParseQuals() {
     }
 }
 
+QualType Parser::ParseDeclaratorTail(const QualType& base_qty) {
+    try {
+        if (ts_.CurIs(TokenType::LPAR)) {
+            return ParseFuncDeclTail(base_qty);
+        } else if (ts_.CurIs(TokenType::LSBRACKET)) {
+            return ParseArrayDeclTail(base_qty);
+        }
+    } catch (const ParseError& e) {
+        // Same as what we do in ParseDeclarator(), do not skip to the
+        // synchronizing token.
+        Error(e.what(), e.Loc());
+    }
+    return base_qty;
+}
+
+QualType Parser::ParseFuncDeclTail(const QualType& base_qty) {
+    std::vector<ObjectPtr> params{};
+    bool is_old_style = false;
+    const SourceLoc& func_loc = ts_.CurToken()->Loc();
+    scopesp_->EnterProto();
+    try {
+        // The scope should end when we finish parsing the parameters.
+        auto finally = Finally([&](){ scopesp_->ExitProto(); });
+        if (IsTypeNameToken(*ts_.Next())) {
+            params = ParseFuncParamsList();
+        } else {
+            params = ParseKRFuncParamsList();
+            is_old_style = true;
+        }
+    } catch (const ParseError& e) {
+        // Try to handle the error.
+        Error(e.what(), e.Loc());
+        SkipToSyncToken();
+        if (!ts_.CurIs(TokenType::RPAR))
+            throw ParseError{"')' expected", ts_.CurToken()->LocPtr()};
+    }
+    ts_.Next();
+    // Though extra tail means it must be wrong, continue parsing and use the
+    // result as return type.
+    QualType ret_qtype = ParseDeclaratorTail(base_qty);
+    // Let CheckFuncRetQType() print error messages.
+    CheckFuncRetQType(ret_qtype, func_loc);
+    return MakeQType<FuncType>(ret_qtype, params, is_old_style);
+}
+
+namespace {
+
+// Convert IdentPtr to ObjectPtr and make type adjustments.
+ObjectPtr AdjustFuncParam(const IdentPtr& identp) {
+    assert(IsFuncName(*identp) || IsObject(*identp));
+    if (IsFuncName(*identp)) {
+        // C11 6.7.6.3p8: A declaration of a parameter as "function returning
+        // type" shall be adjusted to "pointer to function returning type"
+        return MakeNodePtr<Object>(
+                   identp->Locp(), ValueTrans(identp->QType()), identp->Name(),
+                   LinkKind::kNoLink, StorKind::kAuto);
+    } else if (IsArrayTy(identp->QType())) {
+        // C11 6.7.6.3p7: A declaration of a parameter as "array of type"
+        // shall be adjusted to "qualified pointer to type".
+        ObjectPtr objp = NodepConv<Object>(identp);
+        objp->UpdateQType(ValueTrans(objp->QType()));
+        return objp;
+    } else {
+        return NodepConv<Object>(identp);
+    }
+}
+
+void HandleParamRedefIfHas(const std::vector<ObjectPtr>& params,
+                           ObjectPtr& objp) {
+    auto is_redef = [&](const ObjectPtr& paramp) {
+        return !objp->IsAnonymous() && !paramp->IsAnonymous() &&
+               objp->Name() == paramp->Name(); };
+    if (std::any_of(params.cbegin(), params.cend(), is_redef)) {
+        Error("redefinition of parameter '" + objp->Name() + "'",
+              objp->Loc());
+        // Treat it as anonymous.
+        objp = MakeNodePtr<Object>(objp->Locp(), objp->QType(), "",
+                                   LinkKind::kNoLink, StorKind::kAuto);
+    }
+}
+
+} // unnamed namespace
+
+std::vector<ObjectPtr> Parser::ParseFuncParamsList() {
+    std::vector<ObjectPtr> params{};
+    if (ts_.CurIs(TokenType::VOID) && ts_.Try(TokenType::RPAR))
+        return params;
+    while (true) {
+        DeclSpecInfo spec_info = ParseDeclSpec(DeclPos::kParam);
+        IdentPtr identp = ParseDeclarator(DeclPos::kParam, spec_info);
+        ObjectPtr objp = AdjustFuncParam(identp);
+        // Though parameters may have incomplete type, void type is not
+        // permitted.
+        // C11 6.7.6.3p12: If the function declarator is not part of a
+        // definition of that function, parameters may have incomplete
+        // type.
+        if (IsVoidTy(objp->QType())) {
+            Error("argument may not have 'void' type", objp->Loc());
+        } else {
+            HandleParamRedefIfHas(params, objp);
+            params.push_back(objp);
+        }
+        if (!ts_.CurIs(TokenType::COMMA))
+            break;
+        ts_.Next();
+    }
+    ExpectCur(TokenType::RPAR);
+    return params;
+}
+
+std::vector<ObjectPtr> Parser::ParseKRFuncParamsList() {
+    std::vector<ObjectPtr> params{};
+    while (ts_.CurIs(TokenType::IDENTIFIER)) {
+        ObjectPtr objp = MakeNodePtr<Object>(ts_.CurToken()->LocPtr(),
+                                             QualType{},
+                                             ts_.CurToken()->TokenStr());
+        HandleParamRedefIfHas(params, objp);
+        params.push_back(objp);
+        ts_.Next();
+        if (!ts_.CurIs(TokenType::COMMA))
+            break;
+        ts_.Next();
+    }
+    ExpectCur(TokenType::RPAR);
+    return params;
+}
+
 }
