@@ -2,15 +2,6 @@
 
 namespace axcc {
 
-std::vector<ObjectPtr> FuncDef::LocalVars() const {
-    std::vector<ObjectPtr> local_vars{};
-    for (const auto& stmtp : bodyp_->Stmts()) {
-        if (IsObjDefStmt(*stmtp))
-            local_vars.emplace_back(NodeConv<ObjDefStmt>(*stmtp).Objp());
-    }
-    return local_vars;
-}
-
 UnaryExpr::UnaryExpr(const SourceLocPtr& locp, const UnaryOpKind& op_kind,
                      const ExprPtr& operandp)
     : Expr{AstNodeKind::kUnaryExpr, locp},

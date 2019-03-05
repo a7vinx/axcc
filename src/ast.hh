@@ -125,15 +125,18 @@ std::shared_ptr<T> MakeNodePtr(Args&&... args) {
 
 class FuncDef : public AstNode {
 public:
-    FuncDef(const CmpdStmtPtr& bodyp, const IdentPtr& identp)
-        : AstNode{AstNodeKind::kFuncDef}, bodyp_{bodyp}, identp_{identp} {}
+    FuncDef(const CmpdStmtPtr& bodyp, const IdentPtr& identp,
+            const std::vector<ObjectPtr>& local_vars)
+        : AstNode{AstNodeKind::kFuncDef},
+          bodyp_{bodyp}, identp_{identp}, local_vars_{local_vars} {}
     CmpdStmtPtr FuncBodyp() const { return bodyp_; }
     IdentPtr FuncIdentp() const { return identp_; }
-    // For allocating space on the stack.
-    std::vector<ObjectPtr> LocalVars() const;
+    std::vector<ObjectPtr> LocalVars() const { return local_vars_; }
 private:
     CmpdStmtPtr bodyp_;
     IdentPtr identp_;
+    // For allocating space on the stack.
+    std::vector<ObjectPtr> local_vars_;
 };
 
 // Statements
