@@ -1061,4 +1061,68 @@ QualType Parser::ParseArrayDeclTail(const QualType& base_qty) {
     return MakeQType<ArrayType>(elem_qty, arr_size);
 }
 
+IdentPtr Parser::MakeDeclarator(const DeclPos& decl_pos,
+                                const DeclSpecInfo& spec_info,
+                                const DeclaratorInfo& d_info,
+                                bool check_err) {
+    auto err = [check_err, &loc = *d_info.locp](const std::string& msg) {
+                   if (check_err) Error(msg, loc); };
+    QualType qtype = d_info.qtype;
+    if (spec_info.align != -1) {
+        if (IsFuncTy(qtype))
+            err("'_Alignas' attribute only applies to variables and fields");
+        else
+            qtype->SetAlign(spec_info.align);
+    }
+    if (spec_info.func_specs != 0) {
+        if (!IsFuncTy(qtype)) {
+            err("'inline' or '_Noreturn' can only appear on functions");
+        } else {
+            auto& func_type = TypeConv<FuncType>(qtype);
+            if (spec_info.func_specs & FuncType::kFSInline)
+                func_type.AddInline();
+            if (spec_info.func_specs & FuncType::kFSNoreturn)
+                func_type.AddNoreturn();
+        }
+    }
+    if (spec_info.stor == StorSpec::kTypedef) {
+        return MakeNodePtr<TypedefName>(d_info.locp, qtype, d_info.name);
+    } else if (IsFuncTy(qtype)) {
+        return MakeNodePtr<FuncName>(d_info.locp, qtype, d_info.name,
+                                     GetLinkKind(decl_pos, spec_info, false));
+    } else {
+        bool has_def = (decl_pos == DeclPos::kGlobal ? false : true);
+        return MakeNodePtr<Object>(d_info.locp, qtype, d_info.name,
+                                   GetLinkKind(decl_pos, spec_info, true),
+                                   GetStorKind(decl_pos, spec_info), has_def);
+    }
+}
+
+LinkKind Parser::GetLinkKind(const DeclPos& decl_pos,
+                             const DeclSpecInfo& spec_info,
+                             bool is_obj) {
+    if (decl_pos == DeclPos::kRecord || decl_pos == DeclPos::kTypeName)
+        return LinkKind::kInvalid;
+    if (spec_info.stor == StorSpec::kExtern ||
+        (spec_info.stor == StorSpec::kNone && decl_pos == DeclPos::kGlobal) ||
+        (spec_info.stor == StorSpec::kNone && !is_obj))
+        return LinkKind::kExtern;
+    if (spec_info.stor == StorSpec::kStatic && decl_pos == DeclPos::kGlobal)
+        return LinkKind::kIntern;
+    return LinkKind::kNoLink;
+}
+
+StorKind Parser::GetStorKind(const DeclPos& decl_pos,
+                             const DeclSpecInfo& spec_info) {
+    if (decl_pos == DeclPos::kRecord || decl_pos == DeclPos::kTypeName)
+        return StorKind::kInvalid;
+    if (spec_info.stor == StorSpec::kRegister)
+        return StorKind::kRegister;
+    if (spec_info.stor == StorSpec::kExtern ||
+        spec_info.stor == StorSpec::kStatic ||
+        (spec_info.stor == StorSpec::kNone && decl_pos == DeclPos::kGlobal))
+        return StorKind::kStatic;
+    return StorKind::kAuto;
+}
+
 }
