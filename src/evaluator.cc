@@ -67,7 +67,6 @@ unsigned long long CorrectConstantVal(unsigned long long val,
 // used to store the intermediate result based on the type of the expression.
 ExprPtr Evaluator::EvalStaticInitializer(const ExprPtr& exprp) {
     QualType expr_qty = exprp->QType();
-    assert(!IsVoidTy(expr_qty) && !IsRecordTy(expr_qty));
     try {
         // Note that it may be array type or function type.
         if (IsPointerTy(ValueTrans(expr_qty))) {
@@ -84,15 +83,17 @@ ExprPtr Evaluator::EvalStaticInitializer(const ExprPtr& exprp) {
             val = CorrectConstantVal(
                       val, TypeConv<ArithType>(expr_qty).ArithKind());
             return MakeNodePtr<Constant>(exprp->Locp(), expr_qty, val);
-        } else {
+        } else if (IsUnsignedTy(expr_qty)) {
             unsigned long long val = EvalExpr<unsigned long long>(exprp);
             val = CorrectConstantVal(
                       val, TypeConv<ArithType>(expr_qty).ArithKind());
             return MakeNodePtr<Constant>(exprp->Locp(), expr_qty, val);
+        } else {
+            throw EvalError{"compile-time constant expected", exprp->Locp()};
         }
     } catch (const EvalError& e) {
         Error(e.what(), e.Loc());
-        return {};
+        return exprp;
     }
 }
 
