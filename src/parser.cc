@@ -1014,4 +1014,51 @@ std::vector<ObjectPtr> Parser::ParseKRFuncParamsList() {
     return params;
 }
 
+QualType Parser::ParseArrayDeclTail(const QualType& base_qty) {
+    const SourceLoc& arr_loc = ts_.CurToken()->Loc();
+    ts_.Next();
+    bool has_static = false;
+    // C11 6.7.6.2p1: The optional type qualifiers and the keyword static shall
+    // appear only in a declaration of a function parameter with an array type,
+    // and then only in the outermost array type derivation.
+    // TODO: Check if it is outermost.
+    auto try_static = [&]() {
+        if (ts_.CurIs(TokenType::STATIC)) {
+            has_static = true;
+            if (scopesp_->CurKind() != ScopeKind::kProto)
+                Error("'static' used in array declarator outside of function "
+                      "prototype", ts_.CurToken()->Loc());
+            ts_.Next();
+        }
+    };
+    try_static();
+    // TODO: Apply these qualifiers when convert this array type to a pointer
+    // type.
+    unsigned char qualifiers = ParseQuals();
+    std::size_t arr_size = 0;
+    if (!has_static)
+        try_static();
+    if (ts_.CurIs(TokenType::AST)) {
+        if (scopesp_->CurKind() != ScopeKind::kProto)
+            Error("star modifier used outside of function prototype",
+                  ts_.CurToken()->Loc());
+        if (has_static)
+            Error("'static' may not be used with an unspecified variable "
+                  "length array size", ts_.CurToken()->Loc());
+        arr_size = 1;
+    } else if (!ts_.CurIs(TokenType::RSBRACKET)) {
+        ConstantPtr constantp = ParseIntConstantExpr();
+        if (constantp->IsNegInt())
+            Error("declare an array with a negative size", constantp->Loc());
+        arr_size = constantp->UIntVal();
+    }
+    ExpectCur(TokenType::RSBRACKET);
+    ts_.Next();
+    QualType elem_qty = ParseDeclaratorTail(base_qty);
+    CheckArrElemQType(elem_qty, arr_loc);
+    if (arr_size == 0)
+        return MakeQType<ArrayType>(elem_qty);
+    return MakeQType<ArrayType>(elem_qty, arr_size);
+}
+
 }
