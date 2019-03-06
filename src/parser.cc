@@ -1243,4 +1243,305 @@ CmpdStmtPtr Parser::ParseFuncBody(const FuncType& func_type) {
     return bodyp;
 }
 
+ObjDefStmtPtr Parser::ParseStaticInitializer(const ObjectPtr& objp) {
+    ObjDefStmtPtr defp = ParseInitializer(objp);
+    for (auto& init : defp->Inits())
+        init.ResetExprp(Evaluator{}.EvalStaticInitializer(init.Exprp()));
+    // We need to make sure each identifier corresponds to only one entity.
+    IdentPtr identp = scopesp_->GetOrdIdentpInFileScope(objp->Name());
+    // We only need to make sure that the identifier we got from scopes is an
+    // object so that it can be used to create ObjDefStmt node. Other errors
+    // will be reported by TryAddToScope().
+    ObjectPtr used_objp = objp;
+    if (identp && IsObject(*identp))
+        used_objp = NodepConv<Object>(identp);
+    return MakeNodePtr<ObjDefStmt>(used_objp, defp->Inits());
+}
+
+// C11 6.7.9 Initialization
+ObjDefStmtPtr Parser::ParseInitializer(const ObjectPtr& objp) {
+    // It is troublesome to detect this error in ParseArrayInitializer().
+    if (IsCharArrayTy(objp->QType())) {
+        if (!ts_.CurIs(TokenType::LBRACE) && !ts_.CurIs(TokenType::STRING))
+            Error("array initializer must be an initializer list or string "
+                  "literal", ts_.CurToken()->Loc());
+    } else if (IsArrayTy(objp->QType()) && !ts_.CurIs(TokenType::LBRACE)) {
+        Error("array initializer must be an initializer list",
+              ts_.CurToken()->Loc());
+    }
+    // Special treatment for top-level struct or union initializer without braces.
+    if (IsRecordTy(objp->QType()) && !ts_.CurIs(TokenType::LBRACE)) {
+        ExprPtr initp = ParseAssignExpr();
+        ConvAsIfByAsgn(initp, objp->QType());
+        return MakeNodePtr<ObjDefStmt>(
+                   objp, std::vector<Initializer>{{0, objp->QType().RawTypep(),
+                                                   initp}});
+    }
+    auto inits = ParseInitializer(objp->QType(), 0, false, false);
+    // Initializers need to be sorted by offset for facilitating generating the
+    // code.
+    auto cmp_off = [](const Initializer& lhs, const Initializer& rhs) {
+        return lhs.Off() < rhs.Off();
+    };
+    std::sort(inits.begin(), inits.end(), cmp_off);
+    return MakeNodePtr<ObjDefStmt>(objp, inits);
+}
+
+std::vector<Initializer> Parser::ParseInitializer(const QualType& qtype,
+                                                  long long off,
+                                                  bool designated,
+                                                  bool follow_asgn) {
+    try {
+        if (designated &&
+            !ts_.CurIs(TokenType::DOT) && !ts_.CurIs(TokenType::LSBRACKET)) {
+            ExpectCur(TokenType::ASGN);
+            ts_.Next();
+            follow_asgn = true;
+            designated = false;
+        }
+        if (IsRecordTy(qtype)) {
+            return ParseRecordInitializer(TypeConv<RecordType>(qtype), off,
+                                          designated, follow_asgn);
+        } else if (IsArrayTy(qtype)) {
+            return ParseArrayInitializer(TypeConv<ArrayType>(qtype), off,
+                                         designated, follow_asgn);
+        } else {
+            return {ParseScalarInitializer(qtype, off)};
+        }
+    } catch (const ParseError& e) {
+        SkipToSyncToken();
+        // A rudimentary approach to handle this error.
+        if (!ts_.CurIs(TokenType::RBRACE))
+            throw;
+        Error(e.what(), e.Loc());
+        ts_.Next();
+        return {};
+    }
+}
+
+namespace {
+
+void AddInitializers(std::vector<Initializer>& inits,
+                     const std::vector<Initializer>& new_inits) {
+    for (const auto& new_init : new_inits) {
+        auto init_same_member = [&](const Initializer& init) {
+            return init.Off() == new_init.Off();
+        };
+        auto dup_init_iter = std::find_if(inits.begin(), inits.end(),
+                                          init_same_member);
+        if (dup_init_iter != inits.end()) {
+            Warning("initializer overrides prior initialization of this "
+                    "subobject", new_init.Exprp()->Loc());
+            *dup_init_iter = new_init;
+        } else {
+            inits.push_back(new_init);
+        }
+    }
+}
+
+} // unnamed namespace
+
+std::vector<Initializer> Parser::ParseRecordInitializer(
+                                     const RecordType& rec_type, long long off,
+                                     bool designated, bool follow_asgn) {
+    if (!rec_type.IsComplete())
+        throw ParseError{"Try to initialize object with incomplete type",
+                         ts_.CurToken()->LocPtr()};
+    std::vector<Initializer> inits{};
+    bool has_brace = ts_.CurIs(TokenType::LBRACE);
+    if (has_brace)
+        ts_.Next();
+    // C11 6.7.9p13: The initializer for a structure or union object that has
+    // automatic storage duration shall be either an initializer list as
+    // described below, or a single expression that has compatible structure or
+    // union type.
+    if (RecordInitTrySingleExpr(inits, rec_type, off, designated, has_brace))
+        return inits;
+    const auto& members = rec_type.Members();
+    auto iter = members.cbegin();
+    while (true) {
+        if (ts_.CurIs(TokenType::RBRACE)) {
+            break;
+        } else if (follow_asgn && !has_brace) {
+            // This case means that an assignment expression is expected.
+        } else if (ts_.CurIs(TokenType::LSBRACKET)) {
+            throw ParseError{"array designator cannot initialize non-array "
+                             "type", ts_.CurToken()->LocPtr()};
+        } else if (ts_.CurIs(TokenType::DOT)) {
+            ExpectNext(TokenType::IDENTIFIER);
+            std::string member_name = ts_.CurToken()->TokenStr();
+            ObjectPtr memberp = rec_type.GetMember(member_name);
+            if (memberp.get() == nullptr)
+                throw ParseError{"field designator '" + member_name + "' does "
+                                 "not refer to any field",
+                                 ts_.CurToken()->LocPtr()};
+            // The iterator need to be updated.
+            auto has_same_name = [&](const ObjectPtr& objp) {
+                return objp->Name() == memberp->Name();
+            };
+            iter = std::find_if(members.cbegin(), members.cend(), has_same_name);
+            designated = true;
+            follow_asgn = false;
+            ts_.Next();
+        }
+        auto cur_member_inits = ParseInitializer((*iter)->QType(),
+                                                 off + (*iter)->Off(),
+                                                 designated, follow_asgn);
+        AddInitializers(inits, cur_member_inits);
+        designated = false;
+        follow_asgn = false;
+        ++iter;
+        bool all_init = IsUnionTy(rec_type) || iter == members.cend();
+        if (CurObjInitIsEnd(all_init, designated, has_brace))
+            break;
+    }
+    if (has_brace) {
+        ExpectCur(TokenType::RBRACE);
+        ts_.Next();
+    }
+    return inits;
+}
+
+bool Parser::RecordInitTrySingleExpr(std::vector<Initializer>& inits,
+                                     const RecordType& rec_type,
+                                     long long off,
+                                     bool designated,
+                                     bool has_brace) {
+    if (!designated && !has_brace &&
+        !ts_.CurIs(TokenType::DOT) && !ts_.CurIs(TokenType::LSBRACKET)) {
+        auto cursor = ts_.SaveCursor();
+        ExprPtr initp = ParseAssignExpr();
+        if (initp->QType()->IsCompatible(rec_type)) {
+            // Do not need to step forward now. Maintain consistency with
+            // ParseScalarInitializer().
+            inits.emplace_back(off, initp->QType().RawTypep(), initp);
+            return true;
+        } else {
+            ts_.ResetCursor(cursor);
+        }
+    }
+    return false;
+}
+
+std::vector<Initializer> Parser::ParseArrayInitializer(ArrayType& arr_type,
+                                                       long long off,
+                                                       bool designated,
+                                                       bool follow_asgn) {
+    std::vector<Initializer> inits{};
+    bool has_brace = ts_.CurIs(TokenType::LBRACE);
+    if (has_brace)
+        ts_.Next();
+    QualType elem_qtype = arr_type.ElemQType();
+    if (ArrayInitTryStrLiteral(inits, arr_type, off, designated, has_brace))
+        return inits;
+    bool is_flexible = arr_type.IsComplete() && arr_type.ArrSize() == 0;
+    std::size_t i = 0;
+    std::size_t largest_index = 0;
+    while (true) {
+        if (ts_.CurIs(TokenType::RBRACE)) {
+            break;
+        } else if (follow_asgn && !has_brace) {
+            // This case means that an assignment expression is expected.
+        } else if (ts_.CurIs(TokenType::DOT)) {
+            throw ParseError{"field designator cannot initialize a non-struct, "
+                             "non-union type", ts_.CurToken()->LocPtr()};
+        } else if (ts_.CurIs(TokenType::LSBRACKET)) {
+            ts_.Next();
+            ConstantPtr designatorp = ParseIntConstantExpr();
+            if (designatorp->IsNegInt())
+                Error("array designator value is negative", designatorp->Loc());
+            i = designatorp->UIntVal();
+            if (arr_type.IsComplete() && i >= arr_type.ArrSize())
+                Error("array designator index exceeds array bounds",
+                      designatorp->Loc());
+            ExpectCur(TokenType::RSBRACKET);
+            ts_.Next();
+            designated = true;
+            follow_asgn = false;
+        }
+        auto cur_elem_inits = ParseInitializer(elem_qtype,
+                                               off + i * elem_qtype->Size(),
+                                               designated, follow_asgn);
+        AddInitializers(inits, cur_elem_inits);
+        designated = false;
+        follow_asgn = false;
+        largest_index = i > largest_index ? i : largest_index;
+        ++i;
+        bool all_init = !is_flexible && arr_type.IsComplete() &&
+                        i >= arr_type.ArrSize();
+        if (CurObjInitIsEnd(all_init, designated, has_brace))
+            break;
+    }
+    // C11 6.7.9p22: If an array of unknown size is initialized, its size is
+    // determined by the largest indexed element with an explicit initializer.
+    if (!arr_type.IsComplete())
+        arr_type.SetArrSize(largest_index + 1);
+    if (has_brace) {
+        ExpectCur(TokenType::RBRACE);
+        ts_.Next();
+    }
+    return inits;
+}
+
+bool Parser::ArrayInitTryStrLiteral(std::vector<Initializer>& inits,
+                                    ArrayType& arr_type,
+                                    long long off,
+                                    bool designated,
+                                    bool has_brace) {
+    if (ts_.CurIs(TokenType::STRING) && IsCharArrayTy(arr_type)) {
+        StrLiteralPtr strp = ParseStrLiterals();
+        QualType char_qtype = TypeConv<ArrayType>(strp->QType()).ElemQType();
+        if (char_qtype->Size() != arr_type.ElemQType()->Size()) {
+            Error("initializing char array with incompatible string literal",
+                  strp->Loc());
+        }
+        if (!arr_type.IsComplete())
+            arr_type.SetArrSize(strp->StrSize() + 1);
+        if (has_brace) {
+            ts_.Try(TokenType::COMMA);
+            ExpectNext(TokenType::RBRACE);
+        }
+        ts_.Next();
+        inits.emplace_back(off, strp->QType().RawTypep(), strp);
+        return true;
+    }
+    return false;
+}
+
+// Now we should meet comma or right brace. If we are stopping at the comma,
+// we need to check whether we can "eat" it. Note that an extra comma is
+// permitted.
+bool Parser::CurObjInitIsEnd(bool all_init, bool designated, bool has_brace) {
+    if (!ts_.CurIs(TokenType::COMMA)) {
+        return true;
+    } else if (all_init) {
+        if (has_brace && ts_.NextIs(TokenType::RBRACE))
+            ts_.Next();
+        return true;
+    } else if ((ts_.NextIs(TokenType::DOT) || ts_.NextIs(TokenType::LSBRACKET)) &&
+               !designated && !has_brace) {
+        // This designator does not belong to us.
+        return true;
+    } else {
+        ts_.Next();
+        return false;
+    }
+}
+
+Initializer Parser::ParseScalarInitializer(const QualType& qtype, long long off) {
+    // C11 6.7.9p11: The initializer for a scalar shall be a single expression,
+    // optionally enclosed in braces.
+    bool has_brace = ts_.CurIs(TokenType::LBRACE);
+    if (has_brace)
+        ts_.Next();
+    ExprPtr initp = ParseAssignExpr();
+    if (has_brace) {
+        ExpectCur(TokenType::RBRACE);
+        ts_.Next();
+    }
+    // Note that due to our error handing, the void type may appear here.
+    ConvAsIfByAsgn(initp, qtype);
+    return {off, qtype.RawTypep(), initp};
+}
+
 }
