@@ -98,7 +98,8 @@ const std::unordered_map<TokenType, std::string> Token::kTypeToStr_{
     {TokenType::GENERIC, "_Generic"},
     {TokenType::SIZEOF, "sizeof"},
     {TokenType::ALIGNAS, "_Alignas"},
-    {TokenType::ALIGNOF, "_Alignof"}
+    {TokenType::ALIGNOF, "_Alignof"},
+    {TokenType::IDENTIFIER, "identifier"}
 };
 
 std::string Token::TypeToStr(const TokenType& tag) {
