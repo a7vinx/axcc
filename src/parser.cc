@@ -1125,4 +1125,122 @@ StorKind Parser::GetStorKind(const DeclPos& decl_pos,
     return StorKind::kAuto;
 }
 
+bool Parser::CurIsFuncDef(const Ident& ident, const QualType& base_qty) {
+    Token* tp = ts_.CurToken();
+    if (!IsFuncName(ident) || IsTypedefName(ident))
+        return false;
+    const auto& func_type = TypeConv<FuncType>(ident.QType());
+    // C11 6.9.1p2: The identifier declared in a function definition (which is
+    // the name of the function) shall have a function type, as specified by
+    // the declarator portion of the function definition.
+    if (IsFuncTy(base_qty) && func_type.IsCompatible(base_qty))
+        return false;
+    if (tp->Tag() == TokenType::LBRACE ||
+        (!func_type.HasProto() && IsTypeNameToken(*tp)))
+        return true;
+    return false;
+}
+
+namespace {
+
+void FinishKRFuncParams(FuncType& func_type,
+                        const std::vector<ObjDefStmtPtr>& decl_list) {
+    std::vector<ObjectPtr> params = func_type.Params();
+    // It contains name-index pairs because we have to keep the original order.
+    std::map<std::string, int> params_map{};
+    for (int i = 0; i < params.size(); ++i)
+        params_map[params[i]->Name()] = i;
+    // Redefinition should already has been handled inside ParseDeclStmt();
+    // C11 6.9.1p6: If the declarator includes an identifier list, each
+    // declaration in the declaration list shall have at least one declarator,
+    // those declarators shall declare only identifiers from the identifier
+    // list, and every identifier in the identifier list shall be declared.
+    for (const auto& declp : decl_list) {
+        const auto& objp = declp->Objp();
+        if (objp->IsAnonymous()) {
+            // Do nothing here. Empty declaration error has already been
+            // reported inside ParseDeclStmt().
+        } else if (params_map.find(objp->Name()) == params_map.cend()) {
+            Error("parameter named '" + objp->Name() + "' is missing",
+                  objp->Loc());
+        } else {
+            if (!objp->QType()->IsComplete()) {
+                Error("variable has incomplete type", objp->Loc());
+                objp->SetErrFlags();
+            }
+            // In order to maintain consistence with the processing of
+            // redefinition, use the first definition.
+            if (!params[params_map[objp->Name()]]->QType().HasRawType())
+                params[params_map[objp->Name()]] = objp;
+        }
+    }
+    for (int i = 0; i < params.size(); ++i) {
+        if (!params[i]->QType().HasRawType()) {
+            Warning("type of '" + params[i]->Name() + "' defaults to 'int'",
+                    params[i]->Loc());
+            params[i]->UpdateQType(MakeQType<ArithType>(ArithType::kASInt));
+        }
+    }
+    func_type.UpdateParams(params);
+}
+
+} // unnamed namespace
+
+FuncDefPtr Parser::ParseFuncDef(const IdentPtr& identp) {
+    auto& func_type = TypeConv<FuncType>(identp->QType());
+    if (!func_type.HasProto()) {
+        // It is an old style function definition and we need to complete its
+        // parameters.
+        FinishKRFuncParams(func_type, TryParseKRFuncDeclList());
+    } else {
+        // Also check the parameters of new style functions here. Now they must
+        // have complete type and can not be anonymous.
+        for (const auto& paramp : func_type.Params()) {
+            // Void type has already been diagnosed as an error. Do not repeat.
+            if (!paramp->QType()->IsComplete() && !IsVoidTy(paramp->QType()))
+                Error("variable has incomplete type", paramp->Loc());
+            if (paramp->IsAnonymous())
+                Error("parameter name omitted", paramp->Loc());
+        }
+    }
+    ExpectCur(TokenType::LBRACE);
+    func_type.EncounterDef();
+    cur_ret_qty_ = func_type.RetQType();
+    CmpdStmtPtr bodyp = ParseFuncBody(func_type);
+    // We need to make sure each identifier corresponds to only one entity.
+    // Related errors will be reported by TryAddToScope();
+    IdentPtr used_identp = scopesp_->GetOrdIdentpInFileScope(identp->Name());
+    if (!used_identp)
+        used_identp = identp;
+    FuncDefPtr defp = MakeNodePtr<FuncDef>(bodyp, used_identp, cur_local_vars_);
+    cur_local_vars_.clear();
+    return defp;
+}
+
+std::vector<ObjDefStmtPtr> Parser::TryParseKRFuncDeclList() {
+    // Now we should be in the file scope and we need to enter a temporary
+    // block scope in order to make TryAddToScope() works fine.
+    scopesp_->EnterBlock();
+    // In case something goes wrong during parsing declarations.
+    auto finally = Finally([&](){ scopesp_->ExitBlock(); });
+    std::vector<ObjDefStmtPtr> all_decls{};
+    while (IsTypeNameToken(*ts_.CurToken())) {
+        std::vector<ObjDefStmtPtr> decls = ParseDeclStmt(DeclPos::kParam);
+        all_decls.insert(all_decls.end(), decls.begin(), decls.end());
+        ts_.Next();
+    }
+    return all_decls;
+}
+
+CmpdStmtPtr Parser::ParseFuncBody(const FuncType& func_type) {
+    // Leave the change operations of scope to ParseCmpdStmt() and all
+    // parameters will merged into that block scope there.
+    CmpdStmtPtr bodyp = ParseCmpdStmt(func_type.Params());
+    // Report all undeclared labels.
+    for (const auto& labelp : undecl_labels_)
+        Error("use of undeclared label '" + labelp->Name() + "'", labelp->Loc());
+    undecl_labels_.clear();
+    return bodyp;
+}
+
 }
