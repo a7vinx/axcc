@@ -1382,6 +1382,72 @@ void Parser::TryAddOrdIdentToScope(const IdentPtr& identp) {
     }
 }
 
+CmpdStmtPtr Parser::ParseCmpdStmt(const std::vector<ObjectPtr>& mereged_objs) {
+    scopesp_->EnterBlock();
+    // Unexpected end token will cause an exception.
+    auto finally = Finally([&](){ return scopesp_->ExitBlock(); });
+    for (const auto& objp : mereged_objs)
+        scopesp_->AddOrdIdent(objp);
+    std::vector<StmtPtr> stmts{};
+    for (ts_.Next(); !ts_.CurIs(TokenType::RBRACE); ts_.Next()) {
+        try {
+            if (ts_.CurIs(TokenType::STATIC_ASSERT)) {
+                ParseStaticAssert();
+            } else if (IsTypeNameToken(*ts_.CurToken())) {
+                std::vector<ObjDefStmtPtr> decls = ParseDeclStmt(DeclPos::kLocal);
+                stmts.insert(stmts.end(), decls.begin(), decls.end());
+            } else {
+                stmts.push_back(ParseStmt());
+            }
+        } catch (const ParseError& e) {
+            // Try to handle the error.
+            Error(e.what(), e.Loc());
+            SkipToSyncToken();
+            if (IsEndToken(*ts_.CurToken()))
+                throw ParseError{"'}' expected", ts_.CurToken()->LocPtr()};
+            if (ts_.CurIs(TokenType::RBRACE))
+                break;
+        }
+    }
+    ExpectCur(TokenType::RBRACE);
+    return MakeNodePtr<CmpdStmt>(stmts);
+}
+
+StmtPtr Parser::ParseStmt() {
+    Token* tp = ts_.CurToken();
+    try {
+        switch (tp->Tag()) {
+            case TokenType::LBRACE: return ParseCmpdStmt();
+            case TokenType::IF: return ParseIfStmt();
+            case TokenType::WHILE: return ParseWhileStmt();
+            case TokenType::DO: return ParseDoStmt();
+            case TokenType::FOR: return ParseForStmt();
+            case TokenType::SWITCH: return ParseSwitchStmt();
+            case TokenType::GOTO: return ParseGotoStmt();
+            case TokenType::CONTINUE: return ParseContinueStmt();
+            case TokenType::BREAK: return ParseBreakStmt();
+            case TokenType::RETURN: return ParseReturnStmt();
+            case TokenType::CASE: return ParseCaseStmt();
+            case TokenType::DEFAULT: return ParseDefaultStmt();
+            default:
+                if (IsIdentToken(*tp) &&
+                    ts_.LookAhead()->Tag() == TokenType::COLON) {
+                    return ParseLabelStmt();
+                } else {
+                    return ParseExprStmt();
+                }
+        }
+    } catch (const ParseError& e) {
+        // Try to handle the error.
+        Error(e.what(), e.Loc());
+        SkipToSyncToken();
+        if (!ts_.CurIs(TokenType::SCLN))
+            throw ParseError{"';' expected", ts_.CurToken()->LocPtr()};
+        // We do not want to return a null pointer here.
+        return MakeNodePtr<NullStmt>();
+    }
+}
+
 // C11 6.7.9 Initialization
 ObjDefStmtPtr Parser::ParseInitializer(const ObjectPtr& objp) {
     // It is troublesome to detect this error in ParseArrayInitializer().
