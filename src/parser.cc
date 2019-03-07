@@ -1298,6 +1298,90 @@ void Parser::TryGenTentativeDefs() {
     }
 }
 
+void Parser::TryAddToScope(const IdentPtr& identp) {
+    if (IsTag(*identp)) {
+        TryAddTagToScope(NodepConv<Tag>(identp));
+    } else if (IsLabel(*identp)) {
+        TryAddLabelToScope(NodepConv<Label>(identp));
+    } else {
+        TryAddOrdIdentToScope(identp);
+    }
+}
+
+void Parser::TryAddTagToScope(const TagPtr& tagp) {
+    // Checks has already been performed in ParseRecordSpec().
+    scopesp_->AddTag(tagp);
+}
+
+void Parser::TryAddLabelToScope(const LabelPtr& labelp) {
+    if (scopesp_->HasLabel(labelp->Name())) {
+        Error("redefinition of label '" + labelp->Name() + "'", labelp->Loc());
+    } else {
+        scopesp_->AddLabel(labelp);
+    }
+}
+
+namespace {
+
+void TryAddExistFuncName(const FuncNamePtr& exist_funcp,
+                         const FuncNamePtr& funcp) {
+    auto& exist_functy = TypeConv<FuncType>(exist_funcp->QType());
+    const auto& new_functy = TypeConv<FuncType>(funcp->QType());
+    if (exist_functy.HasDef() && new_functy.HasDef()) {
+        Error("redefinition of '" + funcp->Name() + "'", funcp->Loc());
+    } else if (new_functy.HasDef()) {
+        exist_functy.UpdateParams(new_functy.Params());
+        exist_functy.EncounterDef();
+    }
+}
+
+void TryAddExistObject(const ObjectPtr& exist_objp, const ObjectPtr& objp) {
+    if (exist_objp->HasDef() && objp->HasDef()) {
+        Error("redefinition of '" + objp->Name() + "'", objp->Loc());
+    } else if (objp->HasDef()) {
+        exist_objp->EncounterDef();
+    }
+}
+
+} // unnamed namespace
+
+void Parser::TryAddOrdIdentToScope(const IdentPtr& identp) {
+    IdentPtr exist_identp = scopesp_->GetOrdIdentpInCurScope(identp->Name());
+    if (!exist_identp) {
+        scopesp_->AddOrdIdent(identp);
+    } else if (exist_identp->Kind() != identp->Kind()) {
+        Error("redefinition of '" + identp->Name() + "' as different kind of "
+              "symbol", identp->Loc());
+    } else if (!exist_identp->QType().IsCompatible(identp->QType())) {
+        // Do not need to check error flags of these two identifiers here.
+        Error("conflicting types for '" + identp->Name() + "'", identp->Loc());
+    } else if (exist_identp->Linkage() == LinkKind::kExtern &&
+               identp->Linkage() != LinkKind::kExtern) {
+        Error("non-extern declaration of '" + identp->Name() + "' follows "
+              "extern declaration", identp->Loc());
+    } else {
+        switch (identp->Kind()) {
+            case AstNodeKind::kTypedefName:
+                // Nothing need to be done.
+                break;
+            case AstNodeKind::kEnumerator:
+                Error("redefinition of enumerator '" + identp->Name() + "'",
+                      identp->Loc());
+                break;
+            case AstNodeKind::kObject:
+                TryAddExistObject(NodepConv<Object>(exist_identp),
+                                  NodepConv<Object>(identp));
+                break;
+            case AstNodeKind::kFuncName:
+                TryAddExistFuncName(NodepConv<FuncName>(exist_identp),
+                                    NodepConv<FuncName>(identp));
+                break;
+            default:
+                assert(false);
+        }
+    }
+}
+
 // C11 6.7.9 Initialization
 ObjDefStmtPtr Parser::ParseInitializer(const ObjectPtr& objp) {
     // It is troublesome to detect this error in ParseArrayInitializer().
