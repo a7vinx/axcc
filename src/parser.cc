@@ -1258,6 +1258,46 @@ ObjDefStmtPtr Parser::ParseStaticInitializer(const ObjectPtr& objp) {
     return MakeNodePtr<ObjDefStmt>(used_objp, defp->Inits());
 }
 
+void Parser::AddTentativeDefIfNeed(const ObjectPtr& objp) {
+    IdentPtr exist_identp = scopesp_->GetOrdIdentpInFileScope(objp->Name());
+    if (exist_identp && NodeConv<Object>(*exist_identp).HasDef())
+        return;
+    // C11 6.9.2p3: If the declaration of an identifier for an object is a
+    // tentative definition and has internal linkage, the declared type shall
+    // not be an incomplete type.
+    if (objp->Linkage() == LinkKind::kIntern && !objp->QType()->IsComplete())
+        Warning("tentative definition of variable with internal linkage has "
+                "incomplete type", objp->Loc());
+    if (tentative_defs_.find(objp->Name()) == tentative_defs_.cend())
+        tentative_defs_.emplace(objp->Name(), objp);
+}
+
+void Parser::RmTentativeDefIfHas(const std::string& name) {
+    auto pos = tentative_defs_.find(name);
+    if (pos != tentative_defs_.cend())
+        tentative_defs_.erase(pos);
+}
+
+// Try to generate definitions for identifiers which has tentative definitions
+// but no external definition in the translation unit.
+void Parser::TryGenTentativeDefs() {
+    for (const auto& pair : tentative_defs_) {
+        const auto& objp = pair.second;
+        if (!objp->QType()->IsComplete() && IsArrayTy(objp->QType())) {
+            Warning("tentative array definition assumed to have one element",
+                    objp->Loc());
+            TypeConv<ArrayType>(objp->QType()).SetArrSize(1);
+        }
+        if (!objp->QType()->IsComplete()) {
+            Error("tentative definition has type that is never completed",
+                  objp->Loc());
+        } else {
+            objp->EncounterDef();
+            ast_.AddNode(MakeNodePtr<ObjDefStmt>(objp));
+        }
+    }
+}
+
 // C11 6.7.9 Initialization
 ObjDefStmtPtr Parser::ParseInitializer(const ObjectPtr& objp) {
     // It is troublesome to detect this error in ParseArrayInitializer().
