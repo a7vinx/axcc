@@ -1839,4 +1839,137 @@ Initializer Parser::ParseScalarInitializer(const QualType& qtype, long long off)
     return {off, qtype.RawTypep(), initp};
 }
 
+// Construct while-loop:
+// cond_label:
+//     if (cond) {
+//         loop_body
+//         jump cond_label
+//     }
+// end_label:
+CmpdStmtPtr Parser::ParseWhileStmt() {
+    scopesp_->EnterBlock();
+    LabelPtr cond_labelp = MakeNodePtr<Label>();
+    LabelPtr end_labelp = MakeNodePtr<Label>();
+    continue_dsts_.push(cond_labelp);
+    break_dsts_.push(end_labelp);
+    // An exception may be thrown in the following parsing.
+    auto finally = Finally([&](){ scopesp_->ExitBlock();
+                                  continue_dsts_.pop();
+                                  break_dsts_.pop(); });
+    // Parse.
+    ts_.Next();
+    ExprPtr condp = ParseParenExpr();
+    StmtPtr loop_bodyp = ParseStmt();
+    // Then construct the corresponding ast node.
+    std::vector<StmtPtr> stmts{};
+    stmts.push_back(MakeNodePtr<LabelStmt>(cond_labelp));
+    CmpdStmtPtr if_truep =
+        MakeNodePtr<CmpdStmt>(
+            std::vector<StmtPtr>{loop_bodyp, MakeNodePtr<JumpStmt>(cond_labelp)});
+    stmts.push_back(MakeNodePtr<IfStmt>(condp, if_truep));
+    stmts.push_back(MakeNodePtr<LabelStmt>(end_labelp));
+    return MakeNodePtr<CmpdStmt>(stmts);
+}
+
+// Construct do-while-loop:
+// begin_label:
+//     loop_body
+// cond_label:
+//     if (cond)
+//         jump begin_label
+// end_label:
+CmpdStmtPtr Parser::ParseDoStmt() {
+    scopesp_->EnterBlock();
+    LabelPtr begin_labelp = MakeNodePtr<Label>();
+    LabelPtr cond_labelp = MakeNodePtr<Label>();
+    LabelPtr end_labelp = MakeNodePtr<Label>();
+    continue_dsts_.push(cond_labelp);
+    break_dsts_.push(end_labelp);
+    // An exception may be thrown in the following parsing.
+    auto finally = Finally([&](){ scopesp_->ExitBlock();
+                                  continue_dsts_.pop();
+                                  break_dsts_.pop(); });
+    // Parse.
+    ts_.Next();
+    StmtPtr loop_bodyp = ParseStmt();
+    ExpectNext(TokenType::WHILE);
+    ts_.Next();
+    ExprPtr condp = ParseParenExpr();
+    ExpectCur(TokenType::SCLN);
+    // Then construct the corresponding ast node.
+    std::vector<StmtPtr> stmts{};
+    stmts.push_back(MakeNodePtr<LabelStmt>(begin_labelp));
+    stmts.push_back(loop_bodyp);
+    stmts.push_back(MakeNodePtr<LabelStmt>(cond_labelp));
+    JumpStmtPtr jump_beginp = MakeNodePtr<JumpStmt>(begin_labelp);
+    stmts.push_back(MakeNodePtr<IfStmt>(condp, jump_beginp));
+    stmts.push_back(MakeNodePtr<LabelStmt>(end_labelp));
+    return MakeNodePtr<CmpdStmt>(stmts);
+}
+
+// Construct for-loop:
+//     init_clause
+// cond_label:
+//     if (cond) {
+//         loop_body
+// iter_label:
+//         iter
+//         jump cond_label
+//     }
+// end_label:
+CmpdStmtPtr Parser::ParseForStmt() {
+    scopesp_->EnterBlock();
+    LabelPtr cond_labelp = MakeNodePtr<Label>();
+    LabelPtr iter_labelp = MakeNodePtr<Label>();
+    LabelPtr end_labelp = MakeNodePtr<Label>();
+    continue_dsts_.push(iter_labelp);
+    break_dsts_.push(end_labelp);
+    // An exception may be thrown in the following parsing.
+    auto finally = Finally([&](){ continue_dsts_.pop();
+                                  break_dsts_.pop();
+                                  scopesp_->ExitBlock(); });
+    // Parse.
+    std::vector<StmtPtr> stmts{};
+    ExpectNext(TokenType::LPAR);
+    ts_.Next();
+    if (IsTypeNameToken(*ts_.CurToken())) {
+        std::vector<ObjDefStmtPtr> defs = ParseDeclStmt(DeclPos::kForLoop);
+        stmts.insert(stmts.end(), defs.cbegin(), defs.cend());
+    } else {
+        stmts.push_back(ParseExprStmt());
+    }
+    ts_.Next();
+    // Parse condition expression.
+    ExprPtr condp{};
+    if (ts_.CurIs(TokenType::SCLN)) {
+        // C11 6.8.5.3p2: An omitted expression-2 is replaced by a nonzero
+        // constant.
+        condp = MakeNodePtr<Constant>(ts_.CurToken()->LocPtr(),
+                                      MakeQType<ArithType>(ArithType::kASInt),
+                                      1ull);
+    } else {
+        condp = NodeConv<ExprStmt>(*ParseExprStmt()).GetExprp();
+    }
+    ts_.Next();
+    // Parse iteration expression.
+    StmtPtr iterp{};
+    if (ts_.CurIs(TokenType::RPAR))
+        iterp = MakeNodePtr<NullStmt>();
+    else
+        iterp = MakeNodePtr<ExprStmt>(ParseExpr());
+    ts_.Next();
+    StmtPtr loop_bodyp = ParseStmt();
+    // Then construct the corresponding ast node.
+    stmts.push_back(MakeNodePtr<LabelStmt>(cond_labelp));
+    CmpdStmtPtr if_truep = MakeNodePtr<CmpdStmt>(
+                               std::vector<StmtPtr>{
+                                   loop_bodyp,
+                                   MakeNodePtr<LabelStmt>(iter_labelp),
+                                   iterp,
+                                   MakeNodePtr<JumpStmt>(cond_labelp)});
+    stmts.push_back(MakeNodePtr<IfStmt>(condp, if_truep));
+    stmts.push_back(MakeNodePtr<LabelStmt>(end_labelp));
+    return MakeNodePtr<CmpdStmt>(stmts);
+}
+
 }
