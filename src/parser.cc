@@ -2059,4 +2059,60 @@ void Parser::GenSwitchJumpStmts(std::vector<StmtPtr>& stmts,
     }
 }
 
+JumpStmtPtr Parser::ParseGotoStmt() {
+    ts_.Next();
+    std::string label_name = ts_.CurToken()->TokenStr();
+    LabelPtr labelp = scopesp_->GetLabelp(label_name);
+    auto iter = std::find_if(undecl_labels_.begin(), undecl_labels_.end(),
+                             [&](const LabelPtr& lp){
+                                 return lp->Name() == label_name; });
+    // Guarantee that there is only one entity per label.
+    if (iter != undecl_labels_.end())
+        labelp = *iter;
+    if (labelp.get() == nullptr) {
+        labelp = MakeNodePtr<Label>(ts_.CurToken()->LocPtr(), label_name);
+        undecl_labels_.push_back(labelp);
+    }
+    ExpectNext(TokenType::SCLN);
+    return MakeNodePtr<JumpStmt>(labelp);
+}
+
+StmtPtr Parser::ParseContinueStmt() {
+    const SourceLoc& loc = ts_.CurToken()->Loc();
+    ExpectNext(TokenType::SCLN);
+    if (continue_dsts_.empty()) {
+        Error("'continue' statement not in loop statement", loc);
+        return MakeNodePtr<NullStmt>();
+    }
+    return MakeNodePtr<JumpStmt>(continue_dsts_.top());
+}
+
+StmtPtr Parser::ParseBreakStmt() {
+    const SourceLoc& loc = ts_.CurToken()->Loc();
+    ExpectNext(TokenType::SCLN);
+    if (break_dsts_.empty()) {
+        Error("'break' statement not in loop or switch statement", loc);
+        return MakeNodePtr<NullStmt>();
+    }
+    return MakeNodePtr<JumpStmt>(break_dsts_.top());
+}
+
+ReturnStmtPtr Parser::ParseReturnStmt() {
+    ts_.Next();
+    ExprPtr retp{};
+    const SourceLoc& ret_loc = ts_.CurToken()->Loc();
+    if (!ts_.CurIs(TokenType::SCLN))
+        retp = ParseExpr();
+    if (IsVoidTy(cur_ret_qty_)) {
+        if (retp.get() != nullptr)
+            Error("void function should not return a value", ret_loc);
+    } else if (retp.get() == nullptr) {
+        Error("non-void function should return a value", ret_loc);
+    } else {
+        ConvAsIfByAsgn(retp, cur_ret_qty_);
+    }
+    ExpectCur(TokenType::SCLN);
+    return MakeNodePtr<ReturnStmt>(retp);
+}
+
 }
