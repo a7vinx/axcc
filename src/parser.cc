@@ -1448,6 +1448,111 @@ StmtPtr Parser::ParseStmt() {
     }
 }
 
+// The parameter declpos could be DeclPos::kLocal, DeclPos::kForLoop or
+// DeclPos::kParam.
+std::vector<ObjDefStmtPtr> Parser::ParseDeclStmt(const DeclPos& declpos) {
+    std::vector<ObjDefStmtPtr> decls{};
+    DeclSpecInfo spec_info = ParseDeclSpec(declpos);
+    // Record local non-static variables before we leave.
+    auto record_vars = [&]() {
+        if (declpos != DeclPos::kParam && spec_info.stor != StorSpec::kStatic) {
+            auto add_local_var = [&](const ObjDefStmtPtr& defp){
+                cur_local_vars_.push_back(defp->Objp()); };
+            std::for_each(decls.cbegin(), decls.cend(), add_local_var);
+        }
+    };
+    auto finally = Finally(record_vars);
+    while (true) {
+        IdentPtr identp = ParseDeclarator(declpos, spec_info);
+        if (identp->Name().empty()) {
+            if (!IsRecordTy(identp->QType()))
+                Warning("empty declaration does not declare anything",
+                        identp->Loc());
+            ExpectCur(TokenType::SCLN);
+            return decls;
+        } else if (IsTypedefName(*identp)) {
+            // Only DeclPos::kLocal permit typedef.
+            TryAddToScope(identp);
+        } else if (IsFuncName(*identp)) {
+            if (declpos == DeclPos::kForLoop)
+                Error("declaration of non-local variable in 'for' loop",
+                      identp->Loc());
+            // Only DeclPos::kLocal permit static and extern specifier.
+            if (identp->Linkage() == LinkKind::kNoLink) {
+                Error("function declared in block scope cannot have 'static' "
+                      "storage class", identp->Loc());
+                TryAddToScope(identp);
+            } else {
+                HandleLocalExternDecl(identp);
+            }
+        } else {
+            ObjectPtr objp = NodepConv<Object>(identp);
+            if (ts_.CurIs(TokenType::ASGN)) {
+                if (declpos == DeclPos::kParam)
+                    Error("C does not support default arguments",
+                          ts_.CurToken()->Loc());
+                if (spec_info.stor == StorSpec::kExtern) {
+                    Error("'extern' variable cannot have an initializer",
+                          objp->Loc());
+                    HandleLocalExternDecl(identp);
+                } else {
+                    TryAddToScope(identp);
+                }
+                ts_.Next();
+                decls.push_back(ParseInitializer(objp));
+            } else if (spec_info.stor == StorSpec::kExtern) {
+                // Only DeclPos::kLocal permit extern.
+                HandleLocalExternDecl(identp);
+            } else {
+                // No additional actions will be performed on local static
+                // variables.
+                TryAddToScope(identp);
+                decls.push_back(MakeNodePtr<ObjDefStmt>(objp));
+            }
+            if (!objp->QType()->IsComplete()) {
+                Error("variable has incomplete type", objp->Loc());
+                objp->SetErrFlags();
+            }
+        }
+        if (!ts_.CurIs(TokenType::COMMA)) {
+            ExpectCur(TokenType::SCLN);
+            return decls;
+        }
+        ts_.Next();
+    }
+}
+
+// Only DeclPos::kLocal permit extern specifier.
+void Parser::HandleLocalExternDecl(const IdentPtr& identp) {
+    // We have to check three identifiers, one newly introduced, one this extern
+    // declaration want to refer to and one existing in the current scope.
+    IdentPtr exist_identp = scopesp_->GetOrdIdentpInCurScope(identp->Name());
+    // leave other checks to TryAddToScope().
+    if (exist_identp.get() != nullptr &&
+        exist_identp->Linkage() != LinkKind::kExtern)
+        // Error but still perform TryAddToScope() which will only play the
+        // role of completing other checks.
+        Error("extern declaration of '" + identp->Name() + "' follows "
+              "non-extern declaration", identp->Loc());
+    IdentPtr ext_identp = scopesp_->GetOrdIdentpInFileScope(identp->Name());
+    // Insert this newly introduced identifier if there is any error.
+    if (ext_identp.get() != nullptr) {
+        if (IsTypedefName(*ext_identp)) {
+            // Do nothing.
+        } else if (ext_identp->Kind() != identp->Kind()) {
+            Error("redefinition of '" + identp->Name() + "' as "
+                  "different kind of symbol", identp->Loc());
+        } else if (!ext_identp->QType().IsCompatible(identp->QType())) {
+            Error("conflicting types for '" + identp->Name() + "'",
+                  identp->Loc());
+        } else {
+            TryAddToScope(ext_identp);
+            return;
+        }
+    }
+    TryAddToScope(identp);
+}
+
 // C11 6.7.9 Initialization
 ObjDefStmtPtr Parser::ParseInitializer(const ObjectPtr& objp) {
     // It is troublesome to detect this error in ParseArrayInitializer().
