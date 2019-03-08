@@ -1839,6 +1839,22 @@ Initializer Parser::ParseScalarInitializer(const QualType& qtype, long long off)
     return {off, qtype.RawTypep(), initp};
 }
 
+IfStmtPtr Parser::ParseIfStmt() {
+    // Until C99, selection and iteration statements did not establish their
+    // own block scopes
+    scopesp_->EnterBlock();
+    // An exception may be thrown in the following parsing.
+    auto finally = Finally([&](){ scopesp_->ExitBlock(); });
+    ts_.Next();
+    ExprPtr condp = ParseParenExpr();
+    StmtPtr thenp = ParseStmt();
+    if (!ts_.Try(TokenType::ELSE))
+        return MakeNodePtr<IfStmt>(condp, thenp);
+    ts_.Next();
+    StmtPtr elsep = ParseStmt();
+    return MakeNodePtr<IfStmt>(condp, thenp, elsep);
+}
+
 // Construct while-loop:
 // cond_label:
 //     if (cond) {
@@ -1970,6 +1986,77 @@ CmpdStmtPtr Parser::ParseForStmt() {
     stmts.push_back(MakeNodePtr<IfStmt>(condp, if_truep));
     stmts.push_back(MakeNodePtr<LabelStmt>(end_labelp));
     return MakeNodePtr<CmpdStmt>(stmts);
+}
+
+CmpdStmtPtr Parser::ParseSwitchStmt() {
+    scopesp_->EnterBlock();
+    LabelPtr end_labelp = MakeNodePtr<Label>();
+    break_dsts_.push(end_labelp);
+    cases_.emplace();
+    default_labels_.emplace();
+    // An exception may be thrown in the following parsing.
+    auto finally = Finally([&](){ scopesp_->ExitBlock();
+                                  break_dsts_.pop();
+                                  cases_.pop();
+                                  default_labels_.pop(); });
+    // Parse.
+    ts_.Next();
+    SourceLocPtr ctrl_locp = ts_.CurToken()->LocPtr();
+    ExprPtr ctrlp = ParseParenExpr();
+    // C11 6.8.4.2p5: The integer promotions are performed on the
+    // controlling expression. The constant expression in each case label
+    // is converted to the promoted type of the controlling expression.
+    QualType ctrl_qtype = TryIntPromote(ctrlp);
+    if (!IsIntegerTy(ctrl_qtype)) {
+        Error("statement requires expression of integer type", *ctrl_locp);
+        ctrl_qtype =
+            MakeQType<ArithType>(ArithType::kASLLong | ArithType::kASUnsigned);
+    }
+    StmtPtr switch_bodyp = ParseStmt();
+    // Then construct the corresponding ast node.
+    std::vector<StmtPtr> stmts{};
+    // Construct a temporary variable.
+    Initializer tmp_var_initp{0, ctrl_qtype.RawTypep(), ctrlp};
+    TempObjPtr tmp_varp = MakeNodePtr<TempObj>(
+                              ctrl_locp, ctrl_qtype,
+                              std::vector<Initializer>{tmp_var_initp});
+    cur_local_vars_.push_back(tmp_varp);
+    stmts.push_back(MakeNodePtr<ExprStmt>(tmp_varp));
+    GenSwitchJumpStmts(stmts, ctrl_qtype, tmp_varp, end_labelp);
+    stmts.push_back(switch_bodyp);
+    stmts.push_back(MakeNodePtr<LabelStmt>(end_labelp));
+    return MakeNodePtr<CmpdStmt>(stmts);
+}
+
+void Parser::GenSwitchJumpStmts(std::vector<StmtPtr>& stmts,
+                                const QualType& ctrl_qtype,
+                                const ObjectPtr& tmp_varp,
+                                const LabelPtr& end_labelp) {
+    std::vector<unsigned long long> cases_val{};
+    for (auto iter = cases_.top().cbegin(); iter != cases_.top().cend(); ++iter) {
+        ExprPtr cur_case_exprp = iter->first;
+        cur_case_exprp = MakeNodePtr<UnaryExpr>(
+                             cur_case_exprp->Locp(), ctrl_qtype, cur_case_exprp);
+        // Evaluate to get the correct value.
+        ConstantPtr constantp = Evaluator{}.EvalIntConstantExpr(cur_case_exprp);
+        if (std::find(cases_val.cbegin(), cases_val.cend(),
+                      constantp->UIntVal()) != cases_val.cend()) {
+            Error("duplicate case value", constantp->Loc());
+        } else {
+            cases_val.push_back(constantp->UIntVal());
+        }
+        ExprPtr cmp_condp =
+            MakeNodePtr<BinaryExpr>(tmp_varp->Locp(), BinaryOpKind::kEqual,
+                                    tmp_varp, constantp);
+        JumpStmtPtr jump_casep = MakeNodePtr<JumpStmt>(iter->second);
+        stmts.push_back(MakeNodePtr<IfStmt>(cmp_condp, jump_casep));
+    }
+    // Generate a default jump statement.
+    if (default_labels_.top().get() != nullptr) {
+        stmts.push_back(MakeNodePtr<JumpStmt>(default_labels_.top()));
+    } else {
+        stmts.push_back(MakeNodePtr<JumpStmt>(end_labelp));
+    }
 }
 
 }
