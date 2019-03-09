@@ -2182,4 +2182,52 @@ StmtPtr Parser::ParseExprStmt() {
     return MakeNodePtr<ExprStmt>(exprp);
 }
 
+bool Parser::IsTypeNameToken(const Token& t) {
+    // Also count storage class specifiers and function specifiers in because
+    // whether count them or not, we have to check the if the result returned
+    // by ParseDeclSpec() contains thoes specifiers.
+    if (static_cast<int>(t.Tag()) >= static_cast<int>(TokenType::VOID) &&
+        static_cast<int>(t.Tag()) <= static_cast<int>(TokenType::NO_RETURN))
+        return true;
+    if (IsIdentToken(t)) {
+        IdentPtr identp = scopesp_->GetOrdIdentpInAllScope(t.TokenStr());
+        if (identp.get() != nullptr && IsTypedefName(*identp))
+            return true;
+    }
+    return false;
+}
+
+void Parser::ExpectCur(const TokenType& tag) {
+    if (!ts_.CurIs(tag))
+        throw ParseError{"'" + Token::TypeToStr(tag) + "' expected",
+                         ts_.CurToken()->LocPtr()};
+}
+
+void Parser::ExpectNext(const TokenType& tag) {
+    if (!ts_.Try(tag))
+        throw ParseError{"'" + Token::TypeToStr(tag) + "' expected",
+                         ts_.LookAhead()->LocPtr()};
+}
+
+void Parser::SkipToSyncToken() {
+    int unmatch_left = 0;
+    Token* tp = ts_.CurToken();
+    TokenType pair_left = scopesp_->CurKind() == ScopeKind::kProto ?
+                              TokenType::LPAR : TokenType::LBRACE;
+    TokenType pair_right = scopesp_->CurKind() == ScopeKind::kProto ?
+                               TokenType::RPAR : TokenType::RBRACE;
+    while (!IsEndToken(*tp)) {
+        if (tp->Tag() == TokenType::SCLN) {
+            break;
+        } else if (tp->Tag() == pair_left) {
+            ++unmatch_left;
+        } else if (tp->Tag() == pair_right) {
+            if (unmatch_left == 0)
+                break;
+            --unmatch_left;
+        }
+        tp = ts_.Next();
+    }
+}
+
 }
