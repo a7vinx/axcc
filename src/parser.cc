@@ -2115,4 +2115,71 @@ ReturnStmtPtr Parser::ParseReturnStmt() {
     return MakeNodePtr<ReturnStmt>(retp);
 }
 
+CmpdStmtPtr Parser::ParseCaseStmt() {
+    LabelPtr case_labelp = MakeNodePtr<Label>();
+    const SourceLoc& case_loc = ts_.CurToken()->Loc();
+    ts_.Next();
+    ConstantPtr constantp = ParseIntConstantExpr();
+    if (cases_.empty()) {
+        Error("'case' statement not in switch statement", case_loc);
+    } else {
+        cases_.top().emplace_back(constantp, case_labelp);
+    }
+    ExpectCur(TokenType::COLON);
+    ts_.Next();
+    StmtPtr stmtp = ParseStmt();
+    return MakeNodePtr<CmpdStmt>(
+               std::vector<StmtPtr>{MakeNodePtr<LabelStmt>(case_labelp), stmtp});
+}
+
+CmpdStmtPtr Parser::ParseDefaultStmt() {
+    LabelPtr default_labelp = MakeNodePtr<Label>();
+    if (default_labels_.empty()) {
+        Error("'default' statement not in switch statement",
+              ts_.CurToken()->Loc());
+    } else if (default_labels_.top().get() != nullptr) {
+        Error("multiple default labels in one switch", ts_.CurToken()->Loc());
+    } else {
+        default_labels_.top() = default_labelp;
+    }
+    ExpectNext(TokenType::COLON);
+    ts_.Next();
+    StmtPtr stmtp = ParseStmt();
+    return MakeNodePtr<CmpdStmt>(
+               std::vector<StmtPtr>{MakeNodePtr<LabelStmt>(default_labelp),
+                                    stmtp});
+}
+
+// We can't just check if the label is followed by a statement and then return
+// a LabelStmtPtr only. Consider the case where a label follows if which can
+// not be parsed correctly if we only return a LabelStmtPtr.
+CmpdStmtPtr Parser::ParseLabelStmt() {
+    std::string label_name = ts_.CurToken()->TokenStr();
+    LabelPtr labelp{};
+    // Update undecl_labels_.
+    auto iter = std::find_if(undecl_labels_.begin(), undecl_labels_.end(),
+                             [&](const LabelPtr& lp){
+                                 return lp->Name() == label_name; });
+    if (iter != undecl_labels_.end()) {
+        labelp = *iter;
+        undecl_labels_.erase(iter);
+    } else {
+        labelp = MakeNodePtr<Label>(ts_.CurToken()->LocPtr(), label_name);
+    }
+    TryAddToScope(labelp);
+    ExpectNext(TokenType::COLON);
+    ts_.Next();
+    StmtPtr stmtp = ParseStmt();
+    return MakeNodePtr<CmpdStmt>(
+               std::vector<StmtPtr>{MakeNodePtr<LabelStmt>(labelp), stmtp});
+}
+
+StmtPtr Parser::ParseExprStmt() {
+    if (ts_.CurIs(TokenType::SCLN))
+        return MakeNodePtr<NullStmt>();
+    ExprPtr exprp = ParseExpr();
+    ExpectCur(TokenType::SCLN);
+    return MakeNodePtr<ExprStmt>(exprp);
+}
+
 }
