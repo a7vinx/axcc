@@ -3,6 +3,8 @@
 #include <type_traits>
 
 #include "parser.hh"
+#include "encoding.hh"
+#include "evaluator.hh"
 
 namespace axcc {
 
@@ -2180,6 +2182,268 @@ StmtPtr Parser::ParseExprStmt() {
     ExprPtr exprp = ParseExpr();
     ExpectCur(TokenType::SCLN);
     return MakeNodePtr<ExprStmt>(exprp);
+}
+
+namespace {
+
+unsigned int CheckIntSuffix(const std::string& token_str, std::size_t pos,
+                            const SourceLoc& loc) {
+    unsigned int arith_kind = 0;
+    for (; pos < token_str.size(); ++pos) {
+        if (token_str[pos] == 'u' || token_str[pos] == 'U') {
+            if (!(arith_kind & ArithType::kASUnsigned)) {
+                arith_kind |= ArithType::kASUnsigned;
+                continue;
+            }
+        } else if (token_str[pos] == 'l' || token_str[pos] == 'L') {
+            if (!(arith_kind & ArithType::kASLong) &&
+                !(arith_kind & ArithType::kASLLong)) {
+                if (pos + 1 < token_str.size() &&
+                    (token_str[pos + 1] == 'l' || token_str[pos + 1] == 'L')) {
+                    arith_kind |= ArithType::kASLLong;
+                    ++pos;
+                } else {
+                    arith_kind |= ArithType::kASLong;
+                }
+                continue;
+            }
+        }
+        Error("invalid suffix on integer constant", loc);
+        break;
+    }
+    return arith_kind;
+}
+
+QualType DetermineIntKind(unsigned long long val, unsigned int arith_kind) {
+    if ((arith_kind & ArithType::kASLong) || (arith_kind & ArithType::kASLLong)) {
+        if (val > ArithType::kSignedLongMax)
+            arith_kind |= ArithType::kASUnsigned;
+    } else if (arith_kind & ArithType::kASUnsigned) {
+        if (val <= ArithType::kUnsignedIntMax) {
+            arith_kind |= ArithType::kASInt;
+        } else {
+            arith_kind |= ArithType::kASLong;
+        }
+    } else {
+        if (val <= ArithType::kSignedIntMax) {
+            arith_kind |= ArithType::kASInt;
+        } else if (val <= ArithType::kSignedLongMax) {
+            arith_kind |= ArithType::kASLong;
+        } else {
+            arith_kind |= ArithType::kASLong;
+            arith_kind |= ArithType::kASUnsigned;
+        }
+    }
+    return MakeQType<ArithType>(arith_kind);
+}
+
+unsigned int CheckFloatSuffix(const std::string& token_str, std::size_t pos,
+                              const SourceLoc& loc) {
+    unsigned int arith_kind = 0;
+    if (pos < token_str.size()) {
+        if (token_str[pos] == 'f' || token_str[pos] == 'F') {
+            arith_kind |= ArithType::kASFloat;
+            ++pos;
+        } else if (token_str[pos] == 'l' || token_str[pos] == 'L') {
+            arith_kind |= ArithType::kASLong;
+            arith_kind |= ArithType::kASDouble;
+            ++pos;
+        }
+        if (pos < token_str.size())
+            Error("invalid suffix on floating constant", loc);
+    }
+    return arith_kind;
+}
+
+bool IsValidUcn(unsigned int ucn) {
+    // C11 6.4.3p2: A universal character name shall not specify a character
+    // whose short identifier is less than 00A0 other than 0024 ($), 0040 (@),
+    // or 0060 (‘), nor one in the range D800 through DFFF inclusive.
+    return (ucn > 0xA0 || ucn == 0x24 || ucn == 0x40 || ucn == 0x60) &&
+           (ucn < 0xD800 || ucn > 0xDFFF);
+}
+
+unsigned int HexCharToVal(char c) {
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    } else if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    } else {
+        return c - '0';
+    }
+}
+
+unsigned int ParseUcn(const std::string& token_str, std::size_t& pos,
+                      const SourceLoc& loc, int len) {
+    unsigned int val = 0;
+    for (int i = 0; i < len; ++i) {
+        if (!std::isxdigit(token_str[pos + 1])) {
+            Error("incomplete universal character name", loc);
+            return 0x24;
+        }
+        val = (val << 4) | HexCharToVal(token_str[++pos]);
+    }
+    if (!IsValidUcn(val)) {
+        Error("invalid universal character", loc);
+        return 0x24;    // Any valid value is alright.
+    }
+    return val;
+}
+
+unsigned int ParseHexChar(const std::string& token_str, std::size_t& pos,
+                          const SourceLoc& loc) {
+    unsigned int val = 0;
+    // No need to check if it is out of bound.
+    if (!std::isxdigit(token_str[pos + 1]))
+        Error("\\x used with no following hex digits", loc);
+    while (std::isxdigit(token_str[pos + 1]))
+        val = (val << 4) | HexCharToVal(token_str[++pos]);
+    return val;
+}
+
+unsigned int ParseOctalChar(const std::string& token_str, std::size_t& pos,
+                            const SourceLoc& loc) {
+    unsigned int val = token_str[pos] - '0';
+    for (auto i : {1, 2}) {
+        if (token_str[pos + 1] >= '0' && token_str[pos + 1] <= '7')
+            val = (val << 3) | (token_str[++pos] - '0');
+        else
+            break;
+    }
+    return val;
+}
+
+unsigned int ParseEscapeSequence(const std::string& token_str, std::size_t& pos,
+                                 const SourceLoc& loc) {
+    switch (token_str[pos]) {
+        case '\'':
+        case '"':
+        case '?':
+        case '\\':
+            return token_str[pos];
+        case 'a': return '\a';
+        case 'b': return '\b';
+        case 'f': return '\f';
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case 'v': return '\v';
+        case 'x': return ParseHexChar(token_str, pos, loc);
+        case 'u': return ParseUcn(token_str, pos, loc, 4);
+        case 'U': return ParseUcn(token_str, pos, loc, 8);
+        default:
+            if (token_str[pos] >= '0' && token_str[pos] <= '7') {
+                return ParseOctalChar(token_str, pos, loc);
+            } else {
+                Error("unknown escape sequence", loc);
+                return 0;
+            }
+    }
+}
+
+} // unnamed namespace
+
+ConstantPtr Parser::ParseIConstant() {
+    Token* tp = ts_.CurToken();
+    std::string token_str = tp->TokenStr();
+    std::size_t pos = 0;
+    unsigned long long val = 0;
+    try {
+        val = std::stoull(token_str, &pos, 0);
+    } catch (const std::out_of_range& e) {
+        Error("integer literal is too large to be represented in any integer "
+              "type", tp->Loc());
+        val = ArithType::kUnsignedLongMax;
+    }
+    unsigned int arith_kind = CheckIntSuffix(token_str, pos, tp->Loc());
+    QualType integer_qty = DetermineIntKind(val, arith_kind);
+    return MakeNodePtr<Constant>(tp->LocPtr(), integer_qty, val);
+}
+
+ConstantPtr Parser::ParseFConstant() {
+    Token* tp = ts_.CurToken();
+    std::string token_str = tp->TokenStr();
+    std::size_t pos = 0;
+    long double val = 0;
+    try {
+        val = std::stold(token_str, &pos);
+    } catch (const std::out_of_range& e) {
+        Error("floating-point constant is too large to be represented in any "
+              "floating-point type", tp->Loc());
+        val = ArithType::kDoubleMax;
+    }
+    unsigned int arith_kind = CheckFloatSuffix(token_str, pos, tp->Loc());
+    // C11 6.4.4.2p4: An unsuffixed floating constant has type double.
+    if (arith_kind == 0)
+        arith_kind |= ArithType::kASDouble;
+    return MakeNodePtr<Constant>(
+               tp->LocPtr(), MakeQType<ArithType>(arith_kind), val);
+}
+
+ConstantPtr Parser::ParseCConstant() {
+    Token* tp = ts_.CurToken();
+    std::string token_str = tp->TokenStr();
+    std::size_t pos = (token_str[0] == '\'' ? 1 : 2);
+    unsigned int val = 0;
+    unsigned int arith_kind = ArithType::kASInt;
+    if (token_str[pos] == '\\') {
+        val = ParseEscapeSequence(token_str, ++pos, tp->Loc());
+        std::size_t str_size = 0;
+        if (token_str[0] == '\'') {
+            std::string str = Ucs4ToUtf8(val);
+            str_size = str.size();
+            val = static_cast<unsigned int>(str[0]);
+        } else if (token_str[0] == 'u') {
+            std::u16string u16str = Ucs4ToUtf16(val);
+            str_size = u16str.size();
+            arith_kind = ArithType::kASShort;
+            val = static_cast<unsigned int>(u16str[0]);
+        } else {
+            std::u32string u32str = Ucs4ToUtf32(val);
+            str_size = u32str.size();
+            val = static_cast<unsigned int>(u32str[0]);
+        }
+        if (str_size > 1)
+            Error("character too large for enclosing character literal type",
+                  tp->Loc());
+    } else {
+        val = token_str[pos];
+    }
+    if (++pos < token_str.size() && token_str[pos] != '\'')
+        Warning("multi-character character constant", tp->Loc());
+    return MakeNodePtr<Constant>(tp->LocPtr(), MakeQType<ArithType>(arith_kind),
+                                 static_cast<unsigned long long>(val));
+}
+
+StrLiteralPtr Parser::ParseStrLiterals() {
+    StrLiteralPtr strp = ParseStrLiteral();
+    while (ts_.Try(TokenType::STRING)) {
+        strp->Concat(*ParseStrLiteral());
+    }
+    return strp;
+}
+
+StrLiteralPtr Parser::ParseStrLiteral() {
+    Token* tp = ts_.CurToken();
+    std::string token_str = tp->TokenStr();
+    std::size_t pos = (token_str[0] == '\"' ? 1 : 2);
+    std::string str{};
+    for (; pos < token_str.size(); ++pos) {
+        unsigned int val = 0;
+        if (token_str[pos] == '\\') {
+            val = ParseEscapeSequence(token_str, ++pos, tp->Loc());
+            str += Ucs4ToUtf8(val);
+        } else {
+            str.push_back(token_str[pos]);
+        }
+    }
+    EncKind enc = EncKind::kUtf8;
+    if (token_str[0] == 'u' && token_str[1] == '\"') {
+        enc = EncKind::kUtf16;
+    } else if (token_str[0] == 'U' || token_str[0] == 'L') {
+        enc = EncKind::kUtf32;
+    }
+    return MakeNodePtr<StrLiteral>(tp->LocPtr(), str, enc);
 }
 
 bool Parser::IsTypeNameToken(const Token& t) {
