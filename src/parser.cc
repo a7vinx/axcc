@@ -2184,6 +2184,106 @@ StmtPtr Parser::ParseExprStmt() {
     return MakeNodePtr<ExprStmt>(exprp);
 }
 
+ExprPtr Parser::ParsePrimaryExpr() {
+    ExprPtr exprp{};
+    switch (ts_.CurToken()->Tag()) {
+        case TokenType::LPAR: return ParseParenExpr();
+        case TokenType::IDENTIFIER: exprp = ParseIdentifier(); break;
+        case TokenType::GENERIC: exprp = ParseGenericSelect(); break;
+        case TokenType::I_CONSTANT: exprp = ParseIConstant(); break;
+        case TokenType::F_CONSTANT: exprp = ParseFConstant(); break;
+        case TokenType::C_CONSTANT: exprp = ParseCConstant(); break;
+        case TokenType::STRING: exprp = ParseStrLiterals(); break;
+        default:
+            throw ParseError{"expression expected", ts_.CurToken()->LocPtr()};
+    }
+    // In order to maintain consistency.
+    ts_.Next();
+    return exprp;
+}
+
+IdentPtr Parser::ParseIdentifier() {
+    Token* tp = ts_.CurToken();
+    std::string name = tp->TokenStr();
+    IdentPtr identp = scopesp_->GetOrdIdentpInAllScope(name);
+    if (identp.get() == nullptr) {
+        Error("use of undeclared identifier '" + name + "'", tp->Loc());
+        // Do not let the null pointer spread out.
+        identp = MakeNodePtr<Object>(tp->LocPtr(),
+                                     MakeQType<ArithType>(ArithType::kASInt),
+                                     name, LinkKind::kInvalid, StorKind::kInvalid);
+        identp->SetErrFlags();
+    } else if (IsTypedefName(*identp)) {
+        Error("unexpected type name '" + name + "': expected expression",
+              tp->Loc());
+    }
+    identp->UpdateLocp(tp->LocPtr());
+    return identp;
+}
+
+ExprPtr Parser::ParseParenExpr() {
+    ExpectCur(TokenType::LPAR);
+    ts_.Next();
+    ExprPtr exprp = ParseExpr();
+    ExpectCur(TokenType::RPAR);
+    // In order to maintain consistency.
+    ts_.Next();
+    return exprp;
+}
+
+ExprPtr Parser::ParseGenericSelect() {
+    ExpectNext(TokenType::LPAR);
+    ts_.Next();
+    ExprPtr ctrlp = ParseAssignExpr();
+    ExprPtr selectedp = ParseGenericAssocList(ValueTrans(ctrlp->QType()));
+    if (selectedp.get() == nullptr) {
+        Error("controlling expression type not compatible with any generic "
+              "association type", ctrlp->Loc());
+        // Do not let the null pointer spread out.
+        selectedp = ctrlp;
+    }
+    return selectedp;
+}
+
+ExprPtr Parser::ParseGenericAssocList(const QualType& ctrl_qtype) {
+    ExprPtr selectedp{};
+    std::vector<QualType> type_vec{};
+    auto has_conflict = [&](const QualType& new_qtype) {
+        auto is_cmpt = [&](const QualType& qtype) {
+                           return qtype.IsCompatible(new_qtype); };
+        return std::any_of(type_vec.cbegin(), type_vec.cend(), is_cmpt);
+    };
+    do {
+        ExpectCur(TokenType::COMMA);
+        ts_.Next();
+        bool select_cur = false;
+        if (ts_.CurIs(TokenType::DEFAULT)) {
+            if (selectedp.get() == nullptr)
+                select_cur = true;
+            ts_.Next();
+        } else {
+            const SourceLoc& new_qtype_loc = ts_.CurToken()->Loc();
+            QualType new_qtype = ParseTypeName();
+            if (!new_qtype->IsComplete() || IsFuncTy(new_qtype)) {
+                Error("generic association need an object type", new_qtype_loc);
+            } else if (has_conflict(new_qtype)) {
+                Error("type in generic association compatible with previously "
+                      "specified type", new_qtype_loc);
+            } else {
+                type_vec.push_back(new_qtype);
+                if (ctrl_qtype.IsCompatible(new_qtype))
+                    select_cur = true;
+            }
+        }
+        ExpectCur(TokenType::COLON);
+        ts_.Next();
+        ExprPtr exprp = ParseAssignExpr();
+        if (select_cur)
+            selectedp = exprp;
+    } while (!ts_.CurIs(TokenType::RPAR));
+    return selectedp;
+}
+
 namespace {
 
 unsigned int CheckIntSuffix(const std::string& token_str, std::size_t pos,
