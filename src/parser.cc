@@ -2184,6 +2184,119 @@ StmtPtr Parser::ParseExprStmt() {
     return MakeNodePtr<ExprStmt>(exprp);
 }
 
+ExprPtr Parser::ParsePostfixExpr() {
+    ExprPtr exprp{};
+    if (ts_.CurIs(TokenType::LPAR) && IsTypeNameToken(*ts_.LookAhead())) {
+        exprp = ParseCompoundLiteral();
+    } else {
+        exprp = ParsePrimaryExpr();
+    }
+    return ParsePostfixExprTail(exprp);
+}
+
+ExprPtr Parser::ParsePostfixExprTail(ExprPtr exprp) {
+    while (true) {
+        switch (ts_.CurToken()->Tag()) {
+            case TokenType::LSBRACKET: exprp = ParseSubscript(exprp); break;
+            case TokenType::LPAR: exprp = ParseFuncCall(exprp); break;
+            case TokenType::DOT: exprp = ParseMemAccs(exprp); break;
+            case TokenType::ARROW: exprp = ParseMemAccsPtr(exprp); break;
+            case TokenType::INC:
+                exprp = ParsePostIncDecExpr(exprp, UnaryOpKind::kPostInc); break;
+            case TokenType::DEC:
+                exprp = ParsePostIncDecExpr(exprp, UnaryOpKind::kPostDec); break;
+            default:
+                return exprp;
+        }
+        ts_.Next();
+    }
+}
+
+ObjectPtr Parser::ParseCompoundLiteral() {
+    SourceLocPtr obj_locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    QualType qtype = ParseTypeName();
+    ExpectCur(TokenType::RPAR);
+    ExpectNext(TokenType::LBRACE);
+    return ParseCompoundLiteralTail(obj_locp, qtype);
+}
+
+ObjectPtr Parser::ParseCompoundLiteralTail(const SourceLocPtr& obj_locp,
+                                           const QualType& qtype) {
+    if (IsFuncTy(qtype)) {
+        // No need to continue.
+        throw ParseError{"illegal initializer type", obj_locp};
+    } else if (!qtype->IsComplete() && !IsArrayTy(qtype)) {
+        Error("variable has incomplete type", *obj_locp);
+    }
+    LabelPtr tmp_name_labelp = MakeNodePtr<Label>();
+    ObjectPtr anony_objp = MakeNodePtr<Object>(
+                               obj_locp, qtype, tmp_name_labelp->Name(),
+                               LinkKind::kNoLink, StorKind::kStatic);
+    ObjDefStmtPtr defp = ParseInitializer(anony_objp);
+    if (scopesp_->CurKind() == ScopeKind::kFile) {
+        ast_.AddNode(defp);
+    } else {
+        anony_objp = MakeNodePtr<TempObj>(obj_locp, qtype, defp->Inits());
+        cur_local_vars_.push_back(anony_objp);
+    }
+    return anony_objp;
+}
+
+UnaryExprPtr Parser::ParseSubscript(const ExprPtr& exprp) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    ExprPtr indexp = ParseExpr();
+    ExpectCur(TokenType::RSBRACKET);
+    ExprPtr ptr_exprp = MakeNodePtr<BinaryExpr>(op_locp, BinaryOpKind::kAdd,
+                                                exprp, indexp);
+    return MakeNodePtr<UnaryExpr>(op_locp, UnaryOpKind::kDeref, ptr_exprp);
+}
+
+FuncCallPtr Parser::ParseFuncCall(const ExprPtr& exprp) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    std::vector<ExprPtr> args{};
+    ts_.Next();
+    if (!ts_.CurIs(TokenType::RPAR)) {
+        while (true) {
+            args.push_back(ParseAssignExpr());
+            if (ts_.CurIs(TokenType::RPAR))
+                break;
+            ExpectCur(TokenType::COMMA);
+            ts_.Next();
+        }
+    }
+    return MakeNodePtr<FuncCall>(op_locp, exprp, args);
+}
+
+BinaryExprPtr Parser::ParseMemAccs(const ExprPtr& exprp) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    ExpectNext(TokenType::IDENTIFIER);
+    ObjectPtr memberp = MakeNodePtr<Object>(ts_.CurToken()->LocPtr(),
+                                            QualType{},
+                                            ts_.CurToken()->TokenStr());
+    return MakeNodePtr<BinaryExpr>(op_locp, BinaryOpKind::kMemAccs,
+                                   exprp, memberp);
+}
+
+BinaryExprPtr Parser::ParseMemAccsPtr(const ExprPtr& exprp) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    ExpectNext(TokenType::IDENTIFIER);
+    UnaryExprPtr derefp = MakeNodePtr<UnaryExpr>(op_locp, UnaryOpKind::kDeref,
+                                                 exprp);
+    ObjectPtr memberp = MakeNodePtr<Object>(ts_.CurToken()->LocPtr(),
+                                            QualType{},
+                                            ts_.CurToken()->TokenStr());
+    return MakeNodePtr<BinaryExpr>(op_locp, BinaryOpKind::kMemAccs,
+                                   derefp, memberp);
+}
+
+UnaryExprPtr Parser::ParsePostIncDecExpr(const ExprPtr& exprp,
+                                         const UnaryOpKind& op_kind) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    return MakeNodePtr<UnaryExpr>(op_locp, op_kind, exprp);
+}
+
 ExprPtr Parser::ParsePrimaryExpr() {
     ExprPtr exprp{};
     switch (ts_.CurToken()->Tag()) {
