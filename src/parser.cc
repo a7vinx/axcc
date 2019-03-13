@@ -205,15 +205,17 @@ void Parser::ParseExtDecl() {
     DeclSpecInfo spec_info = ParseDeclSpec(DeclPos::kGlobal);
     while (true) {
         IdentPtr identp = ParseDeclarator(DeclPos::kGlobal, spec_info);
+        // A rudimentary approach to empty declaration checking.
+        if (identp->Name().empty()) {
+            if (!IsRecordTy(identp->QType()))
+                Warning("empty declaration does not declare anything",
+                        identp->Loc());
+            ExpectCur(TokenType::SCLN);
+            return;
+        }
         // Unless this identifier represents nothing, we will always insert it
         // into current scope.
         auto finally = Finally([&](){ TryAddToScope(identp); });
-        // A rudimentary approach to empty declaration checking.
-        if (identp->Name().empty() && !IsRecordTy(identp->QType())) {
-            // Warning but continue the subsequent processing.
-            Warning("empty declaration does not declare anything", identp->Loc());
-            finally.Cancel();
-        }
         if (!has_prev_ident && CurIsFuncDef(*identp, spec_info.base_qty)) {
             // Deal with function definition.
             ast_.AddNode(ParseFuncDef(identp));
