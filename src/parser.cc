@@ -451,6 +451,7 @@ Parser::DeclSpecInfo Parser::ParseDeclSpec(const DeclPos& decl_pos) {
         default:
             assert(false);
     }
+    info.base_qty.MergeQuals(qualifiers);
     return info;
 }
 
