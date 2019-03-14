@@ -2187,6 +2187,96 @@ StmtPtr Parser::ParseExprStmt() {
     return MakeNodePtr<ExprStmt>(exprp);
 }
 
+ExprPtr Parser::ParseUnaryExpr() {
+    switch (ts_.CurToken()->Tag()) {
+        case TokenType::INC: return ParsePreIncDecExpr(UnaryOpKind::kPreInc);
+        case TokenType::DEC: return ParsePreIncDecExpr(UnaryOpKind::kPreDec);
+        case TokenType::AMP: return ParseUnaryOpExpr(UnaryOpKind::kAddrOf);
+        case TokenType::AST: return ParseUnaryOpExpr(UnaryOpKind::kDeref);
+        case TokenType::PLUS: return ParseUnaryOpExpr(UnaryOpKind::kPlus);
+        case TokenType::MINUS: return ParseUnaryOpExpr(UnaryOpKind::kMinus);
+        case TokenType::TILDE: return ParseUnaryOpExpr(UnaryOpKind::kBitNot);
+        case TokenType::EXCL: return ParseUnaryOpExpr(UnaryOpKind::kLogicNot);
+        case TokenType::SIZEOF: return ParseSizeof();
+        case TokenType::ALIGNOF: return ParseAlignof();
+        default:
+            return ParsePostfixExpr();
+    }
+}
+
+UnaryExprPtr Parser::ParsePreIncDecExpr(const UnaryOpKind& op_kind) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    return MakeNodePtr<UnaryExpr>(op_locp, op_kind, ParseUnaryExpr());
+}
+
+UnaryExprPtr Parser::ParseUnaryOpExpr(const UnaryOpKind& op_kind) {
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    return MakeNodePtr<UnaryExpr>(op_locp, op_kind, ParseCastExpr());
+}
+
+ConstantPtr Parser::ParseSizeof() {
+    SourceLocPtr sizeof_locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    QualType qtype{};
+    if (ts_.CurIs(TokenType::LPAR) && IsTypeNameToken(*ts_.LookAhead())) {
+        ts_.Next();
+        qtype = ParseTypeName();
+        ExpectCur(TokenType::RPAR);
+        // In order to maintain consistency.
+        ts_.Next();
+    } else {
+        ExprPtr exprp = ParseUnaryExpr();
+        qtype = exprp->QType();
+        if (IsBitField(*exprp))
+            Error("invalid application of 'sizeof' to bit-field", *sizeof_locp);
+    }
+    std::size_t size = 1;
+    if (IsVoidTy(qtype)) {
+        Warning("invalid application of 'sizeof' to a void type", *sizeof_locp);
+    } else if (IsFuncTy(qtype)) {
+        Warning("invalid application of 'sizeof' to a function type",
+                *sizeof_locp);
+    } else if (!qtype->IsComplete()) {
+        Error("invalid application of 'sizeof' to an incomplete type",
+              *sizeof_locp);
+    } else {
+        size = qtype->Size();
+    }
+    return MakeNodePtr<Constant>(sizeof_locp,
+                                 MakeQType<ArithType>(ArithType::kASLong |
+                                                      ArithType::kASUnsigned),
+                                 static_cast<unsigned long long>(size));
+}
+
+ConstantPtr Parser::ParseAlignof() {
+    SourceLocPtr alignof_locp = ts_.CurToken()->LocPtr();
+    ExpectNext(TokenType::LPAR);
+    ts_.Next();
+    QualType qtype = ParseTypeName();
+    ExpectCur(TokenType::RPAR);
+    // In order to maintain consistency.
+    ts_.Next();
+    std::size_t align = 1;
+    if (IsVoidTy(qtype)) {
+        Warning("invalid application of 'alignof' to a void type", *alignof_locp);
+    } else if (IsFuncTy(qtype)) {
+        Warning("invalid application of 'alignof' to a function type",
+                *alignof_locp);
+        align = 4;
+    } else if (!qtype->IsComplete()) {
+        Error("invalid application of 'alignof' to an incomplete type",
+              *alignof_locp);
+    } else {
+        align = qtype->Align();
+    }
+    return MakeNodePtr<Constant>(alignof_locp,
+                                 MakeQType<ArithType>(ArithType::kASLong |
+                                                      ArithType::kASUnsigned),
+                                 static_cast<unsigned long long>(align));
+}
+
 ExprPtr Parser::ParsePostfixExpr() {
     ExprPtr exprp{};
     if (ts_.CurIs(TokenType::LPAR) && IsTypeNameToken(*ts_.LookAhead())) {
