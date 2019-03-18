@@ -2187,6 +2187,208 @@ StmtPtr Parser::ParseExprStmt() {
     return MakeNodePtr<ExprStmt>(exprp);
 }
 
+// Can not use the recursive method to parse here because it would lead to
+// unexpected connection order of nodes.
+ExprPtr Parser::ParseExpr() {
+    return ParseSimpleBinExpr<&Parser::ParseAssignExpr, TokenType::COMMA,
+                              BinaryOpKind::kComma>();
+}
+
+ExprPtr Parser::ParseAssignExpr() {
+    // We can directly try to parse a conditional expression here and let the
+    // type checking inside BinaryExpr handle the unexpected expression kind.
+    ExprPtr lhsp = ParseConditionalExpr();
+    BinaryOpKind arith_op_kind = BinaryOpKind::kAsgn;
+    switch (ts_.CurToken()->Tag()) {
+        case TokenType::ASGN: break;
+        case TokenType::MUL_ASGN: arith_op_kind = BinaryOpKind::kPro; break;
+        case TokenType::DIV_ASGN: arith_op_kind = BinaryOpKind::kDiv; break;
+        case TokenType::MOD_ASGN: arith_op_kind = BinaryOpKind::kMod; break;
+        case TokenType::ADD_ASGN: arith_op_kind = BinaryOpKind::kAdd; break;
+        case TokenType::SUB_ASGN: arith_op_kind = BinaryOpKind::kSub; break;
+        case TokenType::SHL_ASGN: arith_op_kind = BinaryOpKind::kBitShl; break;
+        case TokenType::SHR_ASGN: arith_op_kind = BinaryOpKind::kBitShr; break;
+        case TokenType::AND_ASGN: arith_op_kind = BinaryOpKind::kBitAnd; break;
+        case TokenType::OR_ASGN: arith_op_kind = BinaryOpKind::kBitOr; break;
+        case TokenType::XOR_ASGN: arith_op_kind = BinaryOpKind::kBitXor; break;
+        default:
+            // Now it means it is a conditional expression only.
+            return lhsp;
+    }
+    SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+    ts_.Next();
+    ExprPtr rhsp = ParseAssignExpr();
+    if (arith_op_kind != BinaryOpKind::kAsgn)
+        rhsp = MakeNodePtr<BinaryExpr>(op_locp, arith_op_kind, lhsp, rhsp);
+    return MakeNodePtr<BinaryExpr>(op_locp, BinaryOpKind::kAsgn, lhsp, rhsp);
+}
+
+// Return constant with value 1 when non-fatal error occurs.
+ConstantPtr Parser::ParseIntConstantExpr() {
+    ExprPtr exprp = ParseConditionalExpr();
+    return Evaluator{}.EvalIntConstantExpr(exprp);
+}
+
+ExprPtr Parser::ParseConditionalExpr() {
+    ExprPtr condp = ParseLogicalOrExpr();
+    if (ts_.CurIs(TokenType::QUES)) {
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr truep = ParseExpr();
+        ExpectCur(TokenType::COLON);
+        ts_.Next();
+        ExprPtr falsep = ParseConditionalExpr();
+        return MakeNodePtr<TernaryExpr>(op_locp, condp, truep, falsep);
+    }
+    return condp;
+}
+
+ExprPtr Parser::ParseLogicalOrExpr() {
+    return ParseSimpleBinExpr<&Parser::ParseLogicalAndExpr,
+                              TokenType::LOGICAL_OR,
+                              BinaryOpKind::kLogicOr>();
+}
+
+ExprPtr Parser::ParseLogicalAndExpr() {
+    return ParseSimpleBinExpr<&Parser::ParseInclusiveOrExpr,
+                              TokenType::LOGICAL_AND,
+                              BinaryOpKind::kLogicAnd>();
+}
+
+ExprPtr Parser::ParseInclusiveOrExpr() {
+    return ParseSimpleBinExpr<&Parser::ParseExclusiveOrExpr, TokenType::VBAR,
+                              BinaryOpKind::kBitOr>();
+}
+
+ExprPtr Parser::ParseExclusiveOrExpr() {
+    return ParseSimpleBinExpr<&Parser::ParseAndExpr, TokenType::CARET,
+                              BinaryOpKind::kBitXor>();
+}
+
+ExprPtr Parser::ParseAndExpr() {
+    return ParseSimpleBinExpr<&Parser::ParseEqualityExpr, TokenType::AMP,
+                              BinaryOpKind::kBitAnd>();
+}
+
+template<ExprPtr (Parser::*ParseTerm)(), TokenType op_token, BinaryOpKind op_kind>
+ExprPtr Parser::ParseSimpleBinExpr() {
+    ExprPtr lhsp = (this->*ParseTerm)();
+    while (ts_.CurIs(op_token)) {
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr rhsp = (this->*ParseTerm)();
+        lhsp = MakeNodePtr<BinaryExpr>(op_locp, op_kind, lhsp, rhsp);
+    }
+    return lhsp;
+}
+
+ExprPtr Parser::ParseEqualityExpr() {
+    ExprPtr lhsp = ParseRelationalExpr();
+    while (true) {
+        BinaryOpKind op_kind = BinaryOpKind::kEqual;
+        switch (ts_.CurToken()->Tag()) {
+            case TokenType::EQ: op_kind = BinaryOpKind::kEqual; break;
+            case TokenType::NEQ: op_kind = BinaryOpKind::kNEqual; break;
+            default:
+                return lhsp;
+        }
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr rhsp = ParseRelationalExpr();
+        lhsp = MakeNodePtr<BinaryExpr>(op_locp, op_kind, lhsp, rhsp);
+    }
+}
+
+ExprPtr Parser::ParseRelationalExpr() {
+    ExprPtr lhsp = ParseShiftExpr();
+    while (true) {
+        BinaryOpKind op_kind = BinaryOpKind::kLess;
+        switch (ts_.CurToken()->Tag()) {
+            case TokenType::LABRACKET: op_kind = BinaryOpKind::kLess; break;
+            case TokenType::RABRACKET: op_kind = BinaryOpKind::kGreater; break;
+            case TokenType::LESS_EQ: op_kind = BinaryOpKind::kLessEq; break;
+            case TokenType::GREATER_EQ: op_kind = BinaryOpKind::kGreaterEq; break;
+            default:
+                return lhsp;
+        }
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr rhsp = ParseShiftExpr();
+        lhsp = MakeNodePtr<BinaryExpr>(op_locp, op_kind, lhsp, rhsp);
+    }
+}
+
+ExprPtr Parser::ParseShiftExpr() {
+    ExprPtr lhsp = ParseAdditiveExpr();
+    while (true) {
+        BinaryOpKind op_kind = BinaryOpKind::kBitShl;
+        switch (ts_.CurToken()->Tag()) {
+            case TokenType::SHL: op_kind = BinaryOpKind::kBitShl; break;
+            case TokenType::SHR: op_kind = BinaryOpKind::kBitShr; break;
+            default:
+                return lhsp;
+        }
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr rhsp = ParseAdditiveExpr();
+        lhsp = MakeNodePtr<BinaryExpr>(op_locp, op_kind, lhsp, rhsp);
+    }
+}
+
+ExprPtr Parser::ParseAdditiveExpr() {
+    ExprPtr lhsp = ParseMultExpr();
+    while (true) {
+        BinaryOpKind op_kind = BinaryOpKind::kAdd;
+        switch (ts_.CurToken()->Tag()) {
+            case TokenType::PLUS: op_kind = BinaryOpKind::kAdd; break;
+            case TokenType::MINUS: op_kind = BinaryOpKind::kSub; break;
+            default:
+                return lhsp;
+        }
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr rhsp = ParseMultExpr();
+        lhsp = MakeNodePtr<BinaryExpr>(op_locp, op_kind, lhsp, rhsp);
+    }
+}
+
+ExprPtr Parser::ParseMultExpr() {
+    ExprPtr lhsp = ParseCastExpr();
+    while (true) {
+        BinaryOpKind op_kind = BinaryOpKind::kPro;
+        switch (ts_.CurToken()->Tag()) {
+            case TokenType::AST: op_kind = BinaryOpKind::kPro; break;
+            case TokenType::SLASH: op_kind = BinaryOpKind::kDiv; break;
+            case TokenType::PCT: op_kind = BinaryOpKind::kMod; break;
+            default:
+                return lhsp;
+        }
+        SourceLocPtr op_locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        ExprPtr rhsp = ParseCastExpr();
+        lhsp = MakeNodePtr<BinaryExpr>(op_locp, op_kind, lhsp, rhsp);
+    }
+}
+
+ExprPtr Parser::ParseCastExpr() {
+    if (ts_.CurIs(TokenType::LPAR) && IsTypeNameToken(*ts_.LookAhead())) {
+        SourceLocPtr locp = ts_.CurToken()->LocPtr();
+        ts_.Next();
+        QualType qtype = ParseTypeName();
+        ExpectCur(TokenType::RPAR);
+        if (ts_.Try(TokenType::LBRACE)) {
+            ObjectPtr objp = ParseCompoundLiteralTail(locp, qtype);
+            return ParsePostfixExprTail(objp);
+        } else {
+            ts_.Next();
+            // Let the type checking inside UnaryExpr handle the unexpected type.
+            return MakeNodePtr<UnaryExpr>(locp, qtype, ParseCastExpr());
+        }
+    } else {
+        return ParseUnaryExpr();
+    }
+}
+
 ExprPtr Parser::ParseUnaryExpr() {
     switch (ts_.CurToken()->Tag()) {
         case TokenType::INC: return ParsePreIncDecExpr(UnaryOpKind::kPreInc);
