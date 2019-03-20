@@ -531,6 +531,41 @@ void Parser::TrySetArithKind(TypeSpec& type_spec, unsigned int& arith_kind,
     }
 }
 
+long long Parser::ParseAlignAs() {
+    long long align = 0;
+    ExpectNext(TokenType::LPAR);
+    ts_.Next();
+    if (IsTypeNameToken(*ts_.CurToken())) {
+        QualType qtype = ParseTypeName();
+        if (IsVoidTy(qtype)) {
+            Warning("invalid application of 'alignas' to a void type",
+                    ts_.CurToken()->Loc());
+            align = 1;
+        } else if (IsFuncTy(qtype)) {
+            Warning("invalid application of 'alignas' to a function type",
+                    ts_.CurToken()->Loc());
+            align = 4;
+        } else if (!qtype->IsComplete()) {
+            Error("invalid application of 'alignas' to an incomplete type",
+                  ts_.CurToken()->Loc());
+        } else {
+            align = qtype->Align();
+        }
+    } else {
+        align = ParseIntConstantExpr()->IntVal();
+    }
+    ExpectCur(TokenType::RPAR);
+    return align;
+}
+
+QualType Parser::ParseTypeName() {
+    DeclSpecInfo spec_info = ParseDeclSpec(DeclPos::kTypeName);
+    IdentPtr identp = ParseDeclarator(DeclPos::kTypeName, spec_info);
+    if (!identp->Name().empty())
+         Error("unexpected identifier", identp->Loc());
+    return identp->QType();
+}
+
 void Parser::ParseEnumSpec() {
     std::string tag_name{};
     if (ts_.Try(TokenType::IDENTIFIER))
