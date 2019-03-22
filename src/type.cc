@@ -155,19 +155,15 @@ void FinishBitFields(long long& off, long long& bit_off, std::size_t align) {
     off = AlignOff(off, align);
 }
 
-// Return true if success. Note that if the field is anonymous, it will
-// also return false.
+// Return false if this bit field is anonymous, which means it does not need
+// to be added to the members list.
 bool HandleBitFieldOff(BitField& bitfield, long long& off, long long& bit_off) {
     // C11 6.7.2.1p12: As a special case, a bit-field structure member
     // with a width of 0 indicates that no further bit-field is to be
     // packed into the unit in which the previous bit-field, if any,
     // was placed.
     if (bitfield.BitWidth() == 0) {
-        if (!bitfield.IsAnonymous())
-            Error("named bit-field '" + bitfield.Name() + "' has zero width",
-                  bitfield.Loc());
-        else
-            FinishBitFields(off, bit_off, bitfield.QType()->Align());
+        FinishBitFields(off, bit_off, bitfield.QType()->Align());
         return false;
     }
     long long bf_tybits = bitfield.QType()->Size() * 8;
@@ -292,11 +288,7 @@ void RecordType::UnionTypeCtor(const std::vector<ObjectPtr>& members) {
         if (!obj.QType()->IsComplete())
             // Error but no "continue" here for suppressing subsequent errors.
             Error("field has incomplete type", obj.Loc());
-        if (IsBitField(obj) && !obj.IsAnonymous() &&
-            NodeConv<BitField>(obj).BitWidth() == 0) {
-            Error("named bit-field '" + obj.Name() + "' has zero width",
-                  obj.Loc());
-        } else if (obj.IsAnonymous() && !IsBitField(obj)) {
+        if (obj.IsAnonymous() && !IsBitField(obj)) {
             // Now deal with anonymous struct or union.
             assert(IsRecordTy(obj.QType()));
             const auto& rec_type = TypeConv<RecordType>(obj.QType());
