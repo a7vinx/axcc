@@ -1,34 +1,22 @@
 #ifndef _AXCC_ERROR_HH_
 #define _AXCC_ERROR_HH_
 
-#include <iostream>
 #include <string>
-
+#include <cstdlib>
 #include "token.hh"
-
-#define COLOR_RED    "\033[31m"
-#define COLOR_YELLOW "\033[33m"
-#define COLOR_RESET  "\033[0m"
 
 namespace axcc {
 
-inline void Error(const std::string& msg) {
-    std::cerr << COLOR_RED << "Error: " << COLOR_RESET << msg << std::endl;
-}
+void Error(const std::string& msg);
+void Error(const std::string& msg, const SourceLoc& loc);
 
-inline void Warning(const std::string& msg) {
-    std::cerr << COLOR_YELLOW << "Warning: " << COLOR_RESET << msg << std::endl;
-}
+void Warning(const std::string& msg);
+void Warning(const std::string& msg, const SourceLoc& loc);
 
-inline void Error(const std::string& msg, const SourceLoc& loc) {
-    std::cerr << COLOR_RED << "Error: " << COLOR_RESET << msg << '\n';
-    std::cerr << LocStr(loc) << std::endl;
-}
+void TurnOnColorOutput();
+void TurnOffColorOutput();
 
-inline void Warning(const std::string& msg, const SourceLoc& loc) {
-    std::cerr << COLOR_YELLOW << "Warning: " << COLOR_RESET << msg << '\n';
-    std::cerr << LocStr(loc) << std::endl;
-}
+std::size_t ErrorCount();
 
 }
 #endif
