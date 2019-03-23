@@ -281,7 +281,7 @@ inline bool IsIntegerTy(const ArithType& arith_type) {
     return !IsFloatingTy(arith_type);
 }
 inline bool IsIntegerTy(const Type& type) {
-    return !IsFloatingTy(type);
+    return IsArithTy(type) && !IsFloatingTy(type);
 }
 inline bool IsSignedTy(const ArithType& arith_type) {
     return !(arith_type.ArithKind() & ArithType::kASUnsigned);
