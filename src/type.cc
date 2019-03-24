@@ -330,6 +330,18 @@ void RecordType::PushMember(const ObjectPtr& objp) {
         has_const_member_ = true;
 }
 
+bool IsCharArrayTy(const Type& type) {
+    if (!IsArrayTy(type))
+        return false;
+    QualType elem_qtype = TypeConv<ArrayType>(type).ElemQType();
+    if (!IsArithTy(elem_qtype))
+        return false;
+    unsigned int elem_arith_kind = TypeConv<ArithType>(elem_qtype).ArithKind();
+    return (elem_arith_kind & ArithType::kASChar) ||
+           (elem_arith_kind == (ArithType::kASShort | ArithType::kASUnsigned)) ||
+           (elem_arith_kind == (ArithType::kASInt | ArithType::kASUnsigned));
+}
+
 QualType LoseAllQuals(const QualType& qtype) {
     QualType unqual_ty{qtype};
     unqual_ty.LoseAllQuals();

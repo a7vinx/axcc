@@ -309,6 +309,7 @@ inline bool IsVoidPtrTy(const Type& type) {
     return IsPointerTy(type) &&
            IsVoidTy(TypeConv<PointerType>(type).PointeeQTy());
 }
+bool IsCharArrayTy(const Type& type);
 
 template<typename T, typename... Args>
 QualType MakeQType(Args&&... args) {
