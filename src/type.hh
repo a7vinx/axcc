@@ -214,10 +214,14 @@ private:
 
 class RecordType : public Type {
 public:
-    RecordType(bool is_struct)
-        : Type{is_struct ? TypeKind::kStruct : TypeKind::kUnion, false} {}
-    RecordType(const std::vector<ObjectPtr>& members, bool is_struct);
+    RecordType(bool is_struct, const std::string& tag_name)
+        : Type{is_struct ? TypeKind::kStruct : TypeKind::kUnion, false},
+          tag_name_{tag_name} {}
+    RecordType(bool is_struct, const std::vector<ObjectPtr>& members,
+               const std::string& tag_name = {});
     virtual bool IsCompatible(const Type& other) const override;
+    std::string TagName() const { return tag_name_; }
+    const std::vector<ObjectPtr>& Members() const { return members_; }
     void EncounterDef(const std::vector<ObjectPtr>& members);
     bool HasMember(const std::string& name) const {
         return members_map_.find(name) != members_map_.cend(); }
@@ -229,6 +233,7 @@ private:
     void UnionTypeCtor(const std::vector<ObjectPtr>& members);
     void MergeAnonyRecord(const RecordType& rec_type, long long base_off = 0);
     void PushMember(const ObjectPtr& objp);
+    std::string tag_name_;
     // The order of members should be remembered.
     std::vector<ObjectPtr> members_{};
     std::map<std::string, ObjectPtr> members_map_{};

@@ -180,8 +180,10 @@ bool HandleBitFieldOff(BitField& bitfield, long long& off, long long& bit_off) {
 
 } // unnamed namespace
 
-RecordType::RecordType(const std::vector<ObjectPtr>& members, bool is_struct)
-    : Type{is_struct ? TypeKind::kStruct : TypeKind::kUnion, true} {
+RecordType::RecordType(bool is_struct, const std::vector<ObjectPtr>& members,
+                       const std::string& tag_name)
+    : Type{is_struct ? TypeKind::kStruct : TypeKind::kUnion, true},
+      tag_name_{tag_name} {
     if (is_struct)
         StructTypeCtor(members);
     else
