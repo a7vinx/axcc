@@ -6,6 +6,38 @@
 
 namespace axcc {
 
+std::string Type::Repr() const {
+    auto str_pair = ReprImpl();
+    return str_pair.first + str_pair.second;
+}
+
+std::pair<std::string, std::string>
+Type::QTypeReprImpl(const QualType& qtype) const {
+    return qtype.ReprImpl();
+}
+
+std::string QualType::Repr() const {
+    auto str_pair = ReprImpl();
+    return str_pair.first + str_pair.second;
+}
+
+std::pair<std::string, std::string> QualType::ReprImpl() const {
+    if (typep_.get() == nullptr)
+        return {};
+    std::string qual_repr = IsConst() ? " const" : "";
+    if (IsVolatile())
+        qual_repr += " volatile";
+    if (IsRestrict())
+        qual_repr += " restrict";
+    auto repr_pair = typep_->ReprImpl();
+    repr_pair.first += qual_repr;
+    return repr_pair;
+}
+
+std::pair<std::string, std::string> VoidType::ReprImpl() const {
+    return {"void", ""};
+}
+
 bool VoidType::IsCompatible(const Type& other) const {
     return IsVoidTy(other);
 }
@@ -59,6 +91,29 @@ ArithType::ArithType(unsigned int arith_kind)
     SetAlign(Size());
 }
 
+std::pair<std::string, std::string> ArithType::ReprImpl() const {
+    std::string repr{};
+    switch (arith_kind_) {
+        case kASBool: repr = "bool"; break;
+        case kASChar: repr = "char"; break;
+        case kASChar | kASUnsigned: repr = "unsigned char"; break;
+        case kASShort: repr = "short"; break;
+        case kASShort | kASUnsigned: repr = "unsigned short"; break;
+        case kASInt: repr = "int"; break;
+        case kASInt | kASUnsigned: repr = "unsigned int"; break;
+        case kASFloat: repr = "float"; break;
+        case kASLong: repr = "long"; break;
+        case kASLong | kASUnsigned: repr = "unsigned long"; break;
+        case kASDouble: repr = "double"; break;
+        case kASDouble | kASLong: repr = "long double"; break;
+        case kASLLong: repr = "long long"; break;
+        case kASLLong | kASUnsigned: repr = "unsigned long long"; break;
+        default:
+            assert(false);
+    }
+    return {repr, ""};
+}
+
 bool ArithType::IsCompatible(const Type& other) const {
     return IsArithTy(other) ?
                arith_kind_ == TypeConv<ArithType>(other).arith_kind_ : false;
@@ -87,11 +142,27 @@ int ArithType::ConvRank() const {
     return rank;
 }
 
+std::pair<std::string, std::string> PointerType::ReprImpl() const {
+    auto repr_pair = QTypeReprImpl(pointee_qty_);
+    repr_pair.first += repr_pair.first.back() == ' ' ? "" : " ";
+    repr_pair.first += "(*";
+    repr_pair.second = ")" + repr_pair.second;
+    return repr_pair;
+}
+
 bool PointerType::IsCompatible(const Type& other) const {
     if (!IsPointerTy(other))
         return false;
     const auto& other_ptrty = TypeConv<PointerType>(other);
     return pointee_qty_.IsCompatible(other_ptrty.pointee_qty_);
+}
+
+std::pair<std::string, std::string> ArrayType::ReprImpl() const {
+    auto repr_pair = QTypeReprImpl(elem_qty_);
+    repr_pair.first += repr_pair.first.back() == ' ' ? "" : " ";
+    std::string arr_size_repr = (arr_size_ == 0 ? "" : std::to_string(arr_size_));
+    repr_pair.second = "[" + arr_size_repr + "]" + repr_pair.second;
+    return repr_pair;
 }
 
 void ArrayType::SetArrSize(std::size_t arr_size) {
@@ -107,6 +178,20 @@ bool ArrayType::IsCompatible(const Type& other) const {
     return (elem_qty_.IsCompatible(other_arrty.elem_qty_) &&
             (IsComplete() != other_arrty.IsComplete() ||
              arr_size_ == other_arrty.arr_size_));
+}
+
+std::pair<std::string, std::string> FuncType::ReprImpl() const {
+    auto repr_pair = QTypeReprImpl(ret_qty_);
+    repr_pair.first += repr_pair.first.back() == ' ' ? "" : " ";
+    std::string params_repr{};
+    for (int i = 0; i < params_.size(); ++i) {
+        params_repr += params_[i]->QType().Repr();
+        if (i == params_.size() - 1)
+            break;
+        params_repr += ", ";
+    }
+    repr_pair.second = "(" + params_repr + ")" + repr_pair.second;
+    return repr_pair;
 }
 
 bool FuncType::IsCompatible(const Type& other) const {
@@ -188,6 +273,11 @@ RecordType::RecordType(bool is_struct, const std::vector<ObjectPtr>& members,
         StructTypeCtor(members);
     else
         UnionTypeCtor(members);
+}
+
+std::pair<std::string, std::string> RecordType::ReprImpl() const {
+    std::string prefix = (Kind() == TypeKind::kStruct ? "struct " : "union ");
+    return {prefix + tag_name_, ""};
 }
 
 bool RecordType::IsCompatible(const Type& other) const {

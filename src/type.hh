@@ -7,6 +7,7 @@
 #include <string>
 #include <map>
 #include <cassert>
+#include <utility>
 
 namespace axcc {
 
@@ -15,6 +16,7 @@ class Object;
 using ObjectPtr = std::shared_ptr<Object>;
 class Expr;
 using ExprPtr = std::shared_ptr<Expr>;
+class QualType;
 
 enum class TypeKind : unsigned char {
     kVoid,
@@ -28,6 +30,8 @@ enum class TypeKind : unsigned char {
 
 class Type {
 public:
+    friend class QualType;
+
     Type(const Type&) = delete;
     Type(Type&&) = delete;
     Type& operator=(const Type&) = delete;
@@ -35,6 +39,7 @@ public:
     virtual ~Type() = default;
 
     virtual bool IsCompatible(const Type& other) const = 0;
+    std::string Repr() const;
     bool IsComplete() const { return is_complete_; }
     std::size_t Size() const { return size_; }
     std::size_t Align() const { return align_; }
@@ -47,7 +52,9 @@ protected:
     void SetComplete() { is_complete_ = true; }
     void SetSize(std::size_t size) { size_ = size; }
     void SetAlign(std::size_t align) { align_ = align; }
+    std::pair<std::string, std::string> QTypeReprImpl(const QualType& qtype) const;
 private:
+    virtual std::pair<std::string, std::string> ReprImpl() const = 0;
     const TypeKind kind_;
     bool is_complete_;
     std::size_t size_;
@@ -58,6 +65,8 @@ using TypePtr = std::shared_ptr<Type>;
 
 class QualType {
 public:
+    friend class Type;
+
     enum Qualifier : unsigned char {
         kQualConst = 1 << 0,
         kQualVolatile = 1 << 1,
@@ -66,6 +75,7 @@ public:
     QualType(unsigned char qualifiers = 0) : qualifiers_{qualifiers} {}
     QualType(const TypePtr& typep, unsigned char qualifiers = 0)
         : typep_{typep}, qualifiers_{qualifiers} {}
+    std::string Repr() const;
     bool IsConst() const { return qualifiers_ & kQualConst; }
     bool IsVolatile() const { return qualifiers_ & kQualVolatile; }
     bool IsRestrict() const { return qualifiers_ & kQualRestrict; }
@@ -93,6 +103,7 @@ public:
         assert(typep_.get() != nullptr);
         return qualifiers_ == other.qualifiers_ && typep_->IsCompatible(other); }
 private:
+    std::pair<std::string, std::string> ReprImpl() const;
     unsigned char qualifiers_;
     // Use shared_ptr in order to reuse the same Type class, e.g., struct/union
     // types and typedefs.
@@ -105,6 +116,8 @@ public:
     // it is an incomplete object type that cannot be completed.
     VoidType() : Type{TypeKind::kVoid, false} {}
     virtual bool IsCompatible(const Type& other) const override;
+private:
+    virtual std::pair<std::string, std::string> ReprImpl() const override;
 };
 
 class ArithType : public Type {
@@ -141,6 +154,7 @@ public:
     // handling of some type conversions.
     int ConvRank() const;
 private:
+    virtual std::pair<std::string, std::string> ReprImpl() const override;
     unsigned int arith_kind_;
 };
 
@@ -157,6 +171,7 @@ public:
     void ResetPointeeQTy(const QualType& pointee_qty) {
         pointee_qty_ = pointee_qty; }
 private:
+    virtual std::pair<std::string, std::string> ReprImpl() const override;
     QualType pointee_qty_;
 };
 
@@ -177,6 +192,7 @@ public:
     void SetArrSize(std::size_t arr_size);
     void ResetElemQType(const QualType& elem_qty) { elem_qty_ = elem_qty; }
 private:
+    virtual std::pair<std::string, std::string> ReprImpl() const override;
     QualType elem_qty_;
     std::size_t arr_size_{0};
 };
@@ -206,6 +222,7 @@ public:
     bool HasProto() const { return has_proto_; }
     void ResetRetQType(const QualType& ret_qty) { ret_qty_ = ret_qty; }
 private:
+    virtual std::pair<std::string, std::string> ReprImpl() const override;
     QualType ret_qty_;
     std::vector<ObjectPtr> params_;
     bool has_proto_;
@@ -229,6 +246,7 @@ public:
     ObjectPtr GetMember(const std::string& name) const;
     bool HasConstMember() const { return has_const_member_; }
 private:
+    virtual std::pair<std::string, std::string> ReprImpl() const override;
     void StructTypeCtor(const std::vector<ObjectPtr>& members);
     void UnionTypeCtor(const std::vector<ObjectPtr>& members);
     void MergeAnonyRecord(const RecordType& rec_type, long long base_off = 0);
