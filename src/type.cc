@@ -303,7 +303,7 @@ ObjectPtr RecordType::GetMember(const std::string& name) const {
 void RecordType::StructTypeCtor(const std::vector<ObjectPtr>& members) {
     long long off = 0;
     long long bit_off = 0;
-    std::size_t align = 0;
+    std::size_t align = 1;
     for (auto iter = members.cbegin(); iter != members.cend(); ++iter) {
         auto& obj = **iter;
         if (!obj.IsAnonymous() && HasMember(obj.Name())) {
@@ -329,6 +329,7 @@ void RecordType::StructTypeCtor(const std::vector<ObjectPtr>& members) {
                     // such member".
                     Error("flexible array member '" + obj.Name() +
                           "' not allowed in otherwise empty struct", obj.Loc());
+                TypeConv<ArrayType>(obj.QType()).SetArrSize(0);
                 // No "continue" here. This flexible array member will be
                 // handled as a normal object member below.
             } else {
@@ -364,7 +365,7 @@ void RecordType::StructTypeCtor(const std::vector<ObjectPtr>& members) {
 }
 
 void RecordType::UnionTypeCtor(const std::vector<ObjectPtr>& members) {
-    std::size_t align = 0;
+    std::size_t align = 1;
     std::size_t size = 0;
     for (auto iter = members.cbegin(); iter != members.cend(); ++iter) {
         auto& obj = **iter;
