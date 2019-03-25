@@ -44,6 +44,7 @@ public:
     std::size_t Size() const { return size_; }
     std::size_t Align() const { return align_; }
     TypeKind Kind() const { return kind_; }
+    void SetAlign(std::size_t align) { align_ = align; }
 
 protected:
     Type(const TypeKind& kind, bool is_complete,
@@ -51,7 +52,6 @@ protected:
         : kind_{kind}, is_complete_{is_complete}, size_{size}, align_{align} {}
     void SetComplete() { is_complete_ = true; }
     void SetSize(std::size_t size) { size_ = size; }
-    void SetAlign(std::size_t align) { align_ = align; }
     std::pair<std::string, std::string> QTypeReprImpl(const QualType& qtype) const;
 private:
     virtual std::pair<std::string, std::string> ReprImpl() const = 0;
