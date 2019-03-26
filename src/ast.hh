@@ -546,12 +546,19 @@ class TempObj : public Object {
 public:
     TempObj(const SourceLocPtr& locp, const QualType& qtype,
             const std::vector<Initializer>& inits)
-        : Object{AstNodeKind::kTempObj, locp, qtype, "",
+        : Object{AstNodeKind::kTempObj, locp, qtype, GenTempName(),
                  LinkKind::kNoLink, StorKind::kAuto},
           inits_{inits} {}
     const std::vector<Initializer>& Inits() const { return inits_; }
+    bool IsInited() const { return has_init_; }
+    void SetInited() { has_init_ = true; }
 private:
+    std::string GenTempName() {
+        static int c = 0;
+        return ".T" + std::to_string(c++);
+    }
     std::vector<Initializer> inits_;
+    bool has_init_{false};
 };
 
 class AstRoot {
