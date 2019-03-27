@@ -481,13 +481,23 @@ StrLiteral::StrLiteral(const SourceLocPtr& locp, const std::string& str,
                        const EncKind& enc)
     : Expr{AstNodeKind::kStrLiteral, locp}, str_{str}, enc_{enc} {
     unsigned int arith_kind = 0;
+    std::size_t str_size = 0;
     switch (enc_) {
-        case EncKind::kUtf8: arith_kind |= ArithType::kASChar; break;
-        case EncKind::kUtf16: arith_kind |= ArithType::kASShort; break;
-        case EncKind::kUtf32: arith_kind |= ArithType::kASInt; break;
+        case EncKind::kUtf8:
+            arith_kind |= ArithType::kASChar;
+            str_size = Str().size();
+            break;
+        case EncKind::kUtf16:
+            arith_kind |= ArithType::kASShort;
+            str_size = U16Str().size();
+            break;
+        case EncKind::kUtf32:
+            arith_kind |= ArithType::kASInt;
+            str_size = U32Str().size();
+            break;
         default: assert(false);
     }
-    SetQType(MakeQType<ArrayType>(MakeQType<ArithType>(arith_kind)));
+    SetQType(MakeQType<ArrayType>(MakeQType<ArithType>(arith_kind), str_size));
 }
 
 // C11 6.4.5p5: If any of the tokens has an encoding prefix, the resulting

@@ -386,6 +386,7 @@ public:
     std::u16string U16Str() const { return Utf8ToUtf16(str_); }
     std::u32string U32Str() const { return Utf8ToUtf32(str_); }
     EncKind Encoding() const { return enc_; }
+    std::size_t StrSize() const { return TypeConv<ArrayType>(QType()).ArrSize(); }
     LabelPtr Labelp() const { return labelp_; }
     void Concat(const StrLiteral& other);
 private:
