@@ -240,7 +240,7 @@ public:
     void ErrInExpr(const std::string& msg) { ErrInExpr(msg, Loc()); }
 protected:
     Expr(const AstNodeKind& kind, const SourceLocPtr& locp,
-         const QualType& qtype = {})
+         const QualType& qtype = MakeQType<ArithType>(ArithType::kASInt))
         : Stmt{kind}, locp_{locp}, qtype_{qtype} {}
     // For identifiers, the location information may need to be modified.
     void SetLocp(const SourceLocPtr& locp) { locp_ = locp; }
@@ -249,7 +249,7 @@ protected:
     void SetLVal() { is_lval_ = true; }
 private:
     SourceLocPtr locp_;
-    QualType qtype_{};
+    QualType qtype_;
     bool is_lval_{false};
     // Now simply use it as a boolean.
     unsigned char err_flags_{0};
