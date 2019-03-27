@@ -233,7 +233,7 @@ public:
     SourceLocPtr Locp() const { return locp_; }
     QualType QType() const { return qtype_; }
     bool IsLVal() const { return is_lval_; }
-    bool HasErr() const { return !err_flags_; }
+    bool HasErr() const { return err_flags_; }
     void SetErrFlags() { err_flags_ = 1; }
     void ErrInExpr(const std::string& msg, const SourceLoc& loc) {
         Error(msg, loc); SetErrFlags(); }
