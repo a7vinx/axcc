@@ -2,6 +2,66 @@
 
 namespace axcc {
 
+void FuncDef::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "FuncDef " << identp_->Repr() << "\n";
+    bodyp_->Print(os, indent + 2);
+}
+
+void NullStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "NullStmt\n";
+}
+
+void ExprStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "ExprStmt\n";
+    exprp_->Print(os, indent + 2);
+}
+
+void Initializer::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "Initializer ";
+    os << "offset: " << off_ << '\n';
+    exprp_->Print(os, indent + 2);
+}
+
+void ObjDefStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "ObjDefStmt " << objp_->Repr() << "\n";
+    for (const auto& init : inits_)
+        init.Print(os, indent + 2);
+}
+
+void LabelStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "LabelStmt " << labelp_->Repr() << "\n";
+}
+
+IfStmt::IfStmt(const ExprPtr& condp, const StmtPtr& thenp, const StmtPtr& elsep)
+    : Stmt{AstNodeKind::kIfStmt}, condp_{condp}, thenp_{thenp}, elsep_{elsep} {
+    if (!IsScalarTy(condp->QType()))
+        Error("statement requires expression of scalar type", condp->Loc());
+}
+
+void IfStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "IfStmt\n";
+    condp_->Print(os, indent + 2);
+    thenp_->Print(os, indent + 2);
+    if (elsep_.get() != nullptr)
+        elsep_->Print(os, indent + 2);
+}
+
+void JumpStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "JumpStmt " << dstp_->Repr() << "\n";
+}
+
+void ReturnStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "ReturnStmt\n";
+    if (ret_exprp_.get() != nullptr)
+        ret_exprp_->Print(os, indent + 2);
+}
+
+void CmpdStmt::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "CmpdStmt\n";
+    for (const auto& stmtp : stmts_)
+        stmtp->Print(os, indent + 2);
+}
+
 UnaryExpr::UnaryExpr(const SourceLocPtr& locp, const UnaryOpKind& op_kind,
                      const ExprPtr& operandp)
     : Expr{AstNodeKind::kUnaryExpr, locp},
@@ -158,6 +218,26 @@ void UnaryExpr::SetTypeCast() {
         // non-lvalue. Use LoseAllQuals() here, not ValueTrans().
         SetQType(LoseAllQuals(QType()));
     }
+}
+
+void UnaryExpr::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "UnaryExpr '" << QType().Repr() << "' ";
+    switch (op_kind_) {
+        case UnaryOpKind::kPreInc: os << "prefix '++'"; break;
+        case UnaryOpKind::kPreDec: os << "prefix '--'"; break;
+        case UnaryOpKind::kPostInc: os << "postfix '++'"; break;
+        case UnaryOpKind::kPostDec: os << "postfix '--'"; break;
+        case UnaryOpKind::kPlus: os << "'+'"; break;
+        case UnaryOpKind::kMinus: os << "'-'"; break;
+        case UnaryOpKind::kBitNot: os << "'~'"; break;
+        case UnaryOpKind::kLogicNot: os << "'!'"; break;
+        case UnaryOpKind::kDeref: os << "'*'"; break;
+        case UnaryOpKind::kAddrOf: os << "'&'"; break;
+        case UnaryOpKind::kCast: os << "cast"; break;
+        default: assert(false);
+    }
+    os << "\n";
+    operandp_->Print(os, indent + 2);
 }
 
 BinaryExpr::BinaryExpr(const SourceLocPtr& locp, const BinaryOpKind& op_kind,
@@ -391,6 +471,37 @@ void BinaryExpr::SetTypeComma() {
     SetQType(ValueTrans(rhsp_->QType()));
 }
 
+void BinaryExpr::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "BinaryExpr '" << QType().Repr() << "' ";
+    switch (op_kind_) {
+        case BinaryOpKind::kAsgn: os << "'='"; break;
+        case BinaryOpKind::kAdd: os << "'+'"; break;
+        case BinaryOpKind::kSub: os << "'-'"; break;
+        case BinaryOpKind::kPro: os << "'*'"; break;
+        case BinaryOpKind::kDiv: os << "'/'"; break;
+        case BinaryOpKind::kMod: os << "'%'"; break;
+        case BinaryOpKind::kBitAnd: os << "'&'"; break;
+        case BinaryOpKind::kBitOr: os << "'|'"; break;
+        case BinaryOpKind::kBitXor: os << "'^'"; break;
+        case BinaryOpKind::kBitShl: os << "'<<'"; break;
+        case BinaryOpKind::kBitShr: os << "'>>'"; break;
+        case BinaryOpKind::kLogicAnd: os << "'&&'"; break;
+        case BinaryOpKind::kLogicOr: os << "'||'"; break;
+        case BinaryOpKind::kEqual: os << "'=='"; break;
+        case BinaryOpKind::kNEqual: os << "'!='"; break;
+        case BinaryOpKind::kLess: os << "'<'"; break;
+        case BinaryOpKind::kGreater: os << "'>'"; break;
+        case BinaryOpKind::kLessEq: os << "'<='"; break;
+        case BinaryOpKind::kGreaterEq: os << "'>='"; break;
+        case BinaryOpKind::kMemAccs: os << "'.'"; break;
+        case BinaryOpKind::kComma: os << "','"; break;
+        default: assert(false);
+    }
+    os << "\n";
+    lhsp_->Print(os, indent + 2);
+    rhsp_->Print(os, indent + 2);
+}
+
 // C11 6.5.15 Conditional operator
 TernaryExpr::TernaryExpr(const SourceLocPtr& locp, const ExprPtr& condp,
                          const ExprPtr& truep, const ExprPtr& falsep)
@@ -431,6 +542,14 @@ TernaryExpr::TernaryExpr(const SourceLocPtr& locp, const ExprPtr& condp,
     } else {
         ErrInExpr("incompatible operand types");
     }
+}
+
+void TernaryExpr::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "ConditionalExpr '";
+    os << QType().Repr() << "'\n";
+    condp_->Print(os, indent + 2);
+    truep_->Print(os, indent + 2);
+    falsep_->Print(os, indent + 2);
 }
 
 // C11 6.5.2.2 Function calls
@@ -477,6 +596,21 @@ FuncCall::FuncCall(const SourceLocPtr& locp, const ExprPtr& funcp,
     }
 }
 
+void FuncCall::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "FuncCall '" << QType().Repr() << "'\n";
+    funcp_->Print(os, indent + 2);
+    for (const auto& argp : args_)
+        argp->Print(os, indent + 2);
+}
+
+void Constant::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "Constant '" << QType().Repr() << "' ";
+    if (IsSignedTy(QType()))
+        os << ll_val_ << "\n";
+    else
+        os << ull_val_ << "\n";
+}
+
 StrLiteral::StrLiteral(const SourceLocPtr& locp, const std::string& str,
                        const EncKind& enc)
     : Expr{AstNodeKind::kStrLiteral, locp}, str_{str}, enc_{enc} {
@@ -500,6 +634,14 @@ StrLiteral::StrLiteral(const SourceLocPtr& locp, const std::string& str,
     SetQType(MakeQType<ArrayType>(MakeQType<ArithType>(arith_kind), str_size));
 }
 
+void StrLiteral::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "StrLiteral '" << QType().Repr() << "' ";
+    os << std::hex;
+    for (const auto c : str_)
+        os << "\\x" << static_cast<unsigned int>(c);
+    os << std::dec << "\n";
+}
+
 // C11 6.4.5p5: If any of the tokens has an encoding prefix, the resulting
 // multibyte character sequence is treated as having the same prefix;
 void StrLiteral::Concat(const StrLiteral& other) {
@@ -512,6 +654,43 @@ void StrLiteral::Concat(const StrLiteral& other) {
 AddrConstant::AddrConstant(const StrLiteralPtr& literalp)
     : AddrConstant(literalp->Labelp()->Name()) {
     literalp_ = literalp;
+}
+
+void AddrConstant::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "AddrConstant ";
+    os << "offset: " << off_;
+    if (literalp_.get() != nullptr) {
+        os << "\n";
+        literalp_->Print(os, indent + 2);
+    } else {
+        os << " label name: " << label_name_ << '\n';
+    }
+}
+
+void Ident::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "Identifier " << Repr() << "\n";
+}
+
+std::string Ident::Repr() const {
+    std::string repr{};
+    if (QType().HasRawType()) {
+        repr += "'";
+        repr += QType().Repr();
+        repr += "' ";
+    }
+    repr += name_;
+    return repr;
+}
+
+void TempObj::Print(std::ostream& os, std::size_t indent) const {
+    os << std::string(indent, ' ') << "TempObj " << Repr() << '\n';
+    for (const auto& init : inits_)
+        init.Print(os, indent + 2);
+}
+
+void AstRoot::Print(std::ostream& os) const {
+    for (const auto& ext_declp : ext_decls_)
+        ext_declp->Print(os, 0);
 }
 
 // C11 6.3.2.1p1: A modifiable lvalue is an lvalue that does not have array

@@ -6,6 +6,7 @@
 #include <string>
 #include <cassert>
 #include <cstdlib>
+#include <ostream>
 
 #include "token.hh"
 #include "type.hh"
@@ -111,6 +112,7 @@ public:
     AstNode& operator=(const AstNode&) = delete;
     AstNode& operator=(AstNode&&) = delete;
     virtual ~AstNode() = default;
+    virtual void Print(std::ostream& os, std::size_t indent) const = 0;
     AstNodeKind Kind() const { return kind_; }
 protected:
     AstNode(const AstNodeKind& kind) : kind_{kind} {}
@@ -129,6 +131,7 @@ public:
             const std::vector<ObjectPtr>& local_vars)
         : AstNode{AstNodeKind::kFuncDef},
           bodyp_{bodyp}, identp_{identp}, local_vars_{local_vars} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     CmpdStmtPtr FuncBodyp() const { return bodyp_; }
     IdentPtr FuncIdentp() const { return identp_; }
     std::vector<ObjectPtr> LocalVars() const { return local_vars_; }
@@ -148,27 +151,39 @@ protected:
 class NullStmt : public Stmt {
 public:
     NullStmt() : Stmt{AstNodeKind::kNullStmt} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
 };
 
 class ExprStmt : public Stmt {
 public:
     ExprStmt(const ExprPtr& exprp)
         : Stmt{AstNodeKind::kExprStmt}, exprp_{exprp} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     ExprPtr GetExprp() const { return exprp_; }
 private:
     ExprPtr exprp_;
 };
 
-struct Initializer {
-    long long off;
-    TypePtr typep;
-    ExprPtr exprp;
+class Initializer {
+public:
+    Initializer(long long off, const TypePtr& typep, const ExprPtr& exprp)
+        : off_{off}, typep_{typep}, exprp_{exprp} {}
+    void Print(std::ostream& os, std::size_t indent) const;
+    long long Off() const { return off_; }
+    TypePtr Typep() const { return typep_; }
+    ExprPtr Exprp() const { return exprp_; }
+    void ResetExprp(const ExprPtr& exprp) { exprp_ = exprp; }
+private:
+    long long off_;
+    TypePtr typep_;
+    ExprPtr exprp_;
 };
 
 class ObjDefStmt : public Stmt {
 public:
-    ObjDefStmt(const ObjectPtr& objp, const std::vector<Initializer>& inits)
+    ObjDefStmt(const ObjectPtr& objp, const std::vector<Initializer>& inits = {})
         : Stmt{AstNodeKind::kObjDefStmt}, objp_{objp}, inits_{inits} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     ObjectPtr Objp() const { return objp_; }
     bool HasInits() const { return inits_.size() != 0; }
     const std::vector<Initializer>& Inits() const { return inits_; }
@@ -181,6 +196,7 @@ class LabelStmt : public Stmt {
 public:
     LabelStmt(const LabelPtr& labelp)
         : Stmt{AstNodeKind::kLabelStmt}, labelp_{labelp} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     LabelPtr GetLabelp() const { return labelp_; }
 private:
     LabelPtr labelp_;
@@ -188,8 +204,8 @@ private:
 
 class IfStmt : public Stmt {
 public:
-    IfStmt(const ExprPtr& condp, const StmtPtr& thenp, const StmtPtr& elsep)
-        : Stmt{AstNodeKind::kIfStmt}, condp_{condp}, thenp_{thenp}, elsep_{elsep} {}
+    IfStmt(const ExprPtr& condp, const StmtPtr& thenp, const StmtPtr& elsep = {});
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     ExprPtr CondExprp() const { return condp_; }
     StmtPtr ThenStmtp() const { return thenp_; }
     StmtPtr ElseStmtp() const { return elsep_; }
@@ -202,6 +218,7 @@ private:
 class JumpStmt : public Stmt {
 public:
     JumpStmt(const LabelPtr& dstp) : Stmt{AstNodeKind::kJumpStmt}, dstp_{dstp} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     LabelPtr DstLabelp() const { return dstp_; }
 private:
     LabelPtr dstp_;
@@ -211,6 +228,7 @@ class ReturnStmt : public Stmt {
 public:
     ReturnStmt(const ExprPtr& ret_exprp)
         : Stmt{AstNodeKind::kReturnStmt}, ret_exprp_{ret_exprp} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     ExprPtr RetExprp() const { return ret_exprp_; }
 private:
     ExprPtr ret_exprp_;
@@ -220,6 +238,7 @@ class CmpdStmt : public Stmt {
 public:
     CmpdStmt(const std::vector<StmtPtr>& stmts)
         : Stmt{AstNodeKind::kCmpdStmt}, stmts_{stmts} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     const std::vector<StmtPtr>& Stmts() const { return stmts_; }
 private:
     std::vector<StmtPtr> stmts_;
@@ -276,6 +295,7 @@ public:
     // For cast operation only
     UnaryExpr(const SourceLocPtr& locp, const QualType& qtype,
               const ExprPtr& operandp);
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     UnaryOpKind OpKind() const { return op_kind_; }
     ExprPtr Operandp() const { return operandp_; }
 private:
@@ -313,6 +333,7 @@ class BinaryExpr : public Expr {
 public:
     BinaryExpr(const SourceLocPtr& locp, const BinaryOpKind& op_kind,
                const ExprPtr& lhsp, const ExprPtr& rhsp);
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     BinaryOpKind OpKind() const { return op_kind_; }
     ExprPtr Lhsp() const { return lhsp_; }
     ExprPtr Rhsp() const { return rhsp_; }
@@ -337,6 +358,7 @@ class TernaryExpr : public Expr {
 public:
     TernaryExpr(const SourceLocPtr& locp, const ExprPtr& condp,
                 const ExprPtr& truep, const ExprPtr& falsep);
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     ExprPtr Condp() const { return condp_; }
     ExprPtr Truep() const { return truep_; }
     ExprPtr Falsep() const { return falsep_; }
@@ -350,6 +372,7 @@ class FuncCall : public Expr {
 public:
     FuncCall(const SourceLocPtr& locp, const ExprPtr& funcp,
              const std::vector<ExprPtr>& args);
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     ExprPtr Funcp() const { return funcp_; }
     const std::vector<ExprPtr>& Args() const { return args_; }
 private:
@@ -366,6 +389,7 @@ public:
         : Expr{AstNodeKind::kConstant, locp, qtype}, ll_val_{ll_val} {}
     Constant(const SourceLocPtr& locp, const QualType& qtype, long double ld_val)
         : Expr{AstNodeKind::kConstant, locp, qtype}, ld_val_{ld_val} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     unsigned long long UIntVal() const { return ull_val_; }
     long long IntVal() const { return ll_val_; }
     long double FloatVal() const { return ld_val_; }
@@ -382,6 +406,7 @@ class StrLiteral : public Expr {
 public:
     StrLiteral(const SourceLocPtr& locp, const std::string& str,
                const EncKind& enc);
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     std::string Str() const { return str_; }
     std::u16string U16Str() const { return Utf8ToUtf16(str_); }
     std::u32string U32Str() const { return Utf8ToUtf32(str_); }
@@ -403,6 +428,7 @@ public:
         : Expr{AstNodeKind::kAddrConstant, {}, {}},
           label_name_{label_name}, off_{off} {}
     AddrConstant(const StrLiteralPtr& literalp);
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     void AddOff(long long off) { off_ += off; }
     std::string LabelName() const { return label_name_; }
     long long Off() const { return off_; }
@@ -424,8 +450,10 @@ enum class LinkKind {
 
 class Ident : public Expr {
 public:
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     std::string Name() const { return name_; }
     LinkKind Linkage() const { return link_; }
+    std::string Repr() const;
     void UpdateLocp(const SourceLocPtr& locp) { SetLocp(locp); }
 protected:
     Ident(const AstNodeKind& kind, const SourceLocPtr& locp,
@@ -550,6 +578,7 @@ public:
         : Object{AstNodeKind::kTempObj, locp, qtype, GenTempName(),
                  LinkKind::kNoLink, StorKind::kAuto},
           inits_{inits} {}
+    virtual void Print(std::ostream& os, std::size_t indent) const override;
     const std::vector<Initializer>& Inits() const { return inits_; }
     bool IsInited() const { return has_init_; }
     void SetInited() { has_init_ = true; }
@@ -566,6 +595,7 @@ class AstRoot {
 public:
     void AddNode(const AstNodePtr& nodep) { ext_decls_.push_back(nodep); }
     const std::vector<AstNodePtr>& ExtDecls() const { return ext_decls_; }
+    void Print(std::ostream& os) const;
 private:
     std::vector<AstNodePtr> ext_decls_{};
 };
