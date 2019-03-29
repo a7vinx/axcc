@@ -98,7 +98,7 @@ public:
         assert(typep_.get() != nullptr); return typep_.get(); }
     Type& operator*() const { return RawType(); }
     // Allow the implicit conversion to const Type&
-    operator const Type&() const { return RawType(); }
+    operator Type&() const { return RawType(); }
     bool IsCompatible(const QualType& other) const {
         assert(typep_.get() != nullptr);
         return qualifiers_ == other.qualifiers_ && typep_->IsCompatible(other); }
