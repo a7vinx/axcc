@@ -187,6 +187,7 @@ public:
     ObjectPtr Objp() const { return objp_; }
     bool HasInits() const { return inits_.size() != 0; }
     const std::vector<Initializer>& Inits() const { return inits_; }
+    std::vector<Initializer>& Inits() { return inits_; }
 private:
     ObjectPtr objp_;
     std::vector<Initializer> inits_;
