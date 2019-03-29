@@ -527,7 +527,7 @@ public:
            const std::string& name, const LinkKind& link,
            const StorKind& stor, bool has_def = true)
         : Ident{AstNodeKind::kObject, locp, qtype, name, link},
-          stor_{stor}, has_def_{has_def} {}
+          stor_{stor}, has_def_{has_def} { SetLVal(); }
     // For struct member.
     Object(const SourceLocPtr& locp, const QualType& qtype,
            const std::string& name)
