@@ -315,7 +315,7 @@ void BinaryExpr::SetTypeAddOps() {
     } else if (IsPointerTy(lhs_qtype) || IsPointerTy(rhs_qtype)) {
         auto is_complete_obj_ptr_ty = [this] (QualType ptr_qtype) {
             if (!IsVoidPtrTy(ptr_qtype) && !IsFuncPtrTy(ptr_qtype) &&
-                TypeConv<PointerType>(ptr_qtype).PointeeQTy()->IsComplete()) {
+                !TypeConv<PointerType>(ptr_qtype).PointeeQTy()->IsComplete()) {
                 ErrInExpr("arithmetic on incomplete object type");
                 return false;
             } else {
@@ -443,6 +443,8 @@ void BinaryExpr::SetTypeMemAccs() {
     assert(IsObject(*rhsp_));
     if (!IsRecordTy(lhsp_->QType())) {
         ErrInExpr("left operand should be a structure or union");
+    } else if (!lhsp_->QType()->IsComplete()) {
+        ErrInExpr("incomplete definition of type");
     } else {
         std::string name = NodeConv<Object>(*rhsp_).Name();
         ObjectPtr memberp = TypeConv<RecordType>(lhsp_->QType()).GetMember(name);
@@ -563,11 +565,12 @@ FuncCall::FuncCall(const SourceLocPtr& locp, const ExprPtr& funcp,
         SetErrFlags();
         return;
     }
-    if (!IsFuncPtrTy(funcp_->QType())) {
+    QualType funcp_qty = ValueTrans(funcp_->QType());
+    if (!IsFuncPtrTy(funcp_qty)) {
         ErrInExpr("called object is not a function or function pointer");
     } else {
-        QualType funcp_qty = TypeConv<PointerType>(funcp_->QType()).PointeeQTy();
-        const auto& func_type = TypeConv<FuncType>(funcp_qty);
+        QualType func_qty = TypeConv<PointerType>(funcp_qty).PointeeQTy();
+        const auto& func_type = TypeConv<FuncType>(func_qty);
         QualType ret_qtype = func_type.RetQType();
         const auto& params = func_type.Params();
         // The function type we got here will never return an array type or a
