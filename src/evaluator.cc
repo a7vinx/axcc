@@ -352,6 +352,13 @@ T Evaluator::EvalTernaryExpr(const TernaryExprPtr& ternary_exprp) {
     }
 }
 
+template<typename T>
+T Evaluator::EvalConstant(const ConstantPtr& constantp) {
+    // It should never be actually called.
+    assert(false);
+    return {};
+}
+
 template<>
 long double Evaluator::EvalConstant(const ConstantPtr& constantp) {
     return constantp->FloatVal();
