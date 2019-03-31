@@ -65,9 +65,6 @@ enum class TokenType {
     CONTINUE, TYPEDEF, RETURN,
     STATIC_ASSERT, GENERIC,
     SIZEOF, ALIGNAS, ALIGNOF,
-    // Preprocessor directives
-    ELIF, ENDIF, INCLUDE, LINE, ERROR,
-    DEF, IFDEF, IFNDEF, UNDEF,
     // Users' tokens
     IDENTIFIER, COMMENT, STRING,
     I_CONSTANT, F_CONSTANT, C_CONSTANT,
