@@ -106,6 +106,11 @@ AstRoot Parser::Parse() {
     return ast_;
 }
 
+ExprPtr ParseAsExpr() {
+    // TODO:
+    return {};
+}
+
 namespace {
 
 class ParseError : public std::exception {
